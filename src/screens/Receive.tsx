@@ -4,16 +4,21 @@ import { useState } from 'react';
 import { getCache } from '@/state/walletState';
 import { buildPaymentUri } from '@/pearl/network';
 import { Qr } from '@/ui/Qr';
+import { fmtUsd } from '@/ui/format';
 import { toast } from '@/ui/Toast';
 
 export function Receive({ onBack }: { onBack: () => void }) {
   const c = getCache();
   const address = c.scan?.receiveAddress ?? '';
   const [amount, setAmount] = useState('');
-  const num = parseFloat(amount);
+  // Normalise comma → dot so European-locale users can type "0,01" too.
+  const normalised = amount.replace(',', '.');
+  const num = parseFloat(normalised);
+  const validAmount = Number.isFinite(num) && num > 0;
   const uri = address
-    ? buildPaymentUri(address, { amount: Number.isFinite(num) && num > 0 ? num : undefined })
+    ? buildPaymentUri(address, { amount: validAmount ? num : undefined })
     : '';
+  const usdRequested = validAmount && c.priceUsd != null ? num * c.priceUsd : null;
 
   async function copyAddress() {
     if (!address) return;
@@ -61,9 +66,14 @@ export function Receive({ onBack }: { onBack: () => void }) {
             />
             <span className="px-3 py-2 bg-ink-800 border border-ink-700 rounded-r-lg text-sm text-pearl-400">PEARL</span>
           </div>
+          {usdRequested != null && (
+            <div className="text-xs text-pearl-500 mt-1 text-right font-mono">
+              ≈ ${fmtUsd(usdRequested)}
+            </div>
+          )}
         </label>
 
-        {amount && Number.isFinite(num) && num > 0 && (
+        {validAmount && (
           <button
             onClick={copyUri}
             className="text-xs text-pearl-500 hover:text-pearl-200 underline decoration-pearl-700"

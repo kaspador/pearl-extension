@@ -2,12 +2,13 @@
 
 import { useState } from 'react';
 import { isValidAddress } from '@/pearl/address';
-import { parsePaymentUri, formatPearl, pearlToGrains } from '@/pearl/network';
+import { parsePaymentUri, formatPearl, pearlToGrains, grainsToPearl } from '@/pearl/network';
 import { buildAndSignTx } from '@/pearl/transaction';
 import { broadcastTx } from '@/api/client';
 import { getCache, refreshWallet } from '@/state/walletState';
 import { getHD } from '@/state/session';
 import { loadMeta } from '@/storage/vault';
+import { fmtUsd } from '@/ui/format';
 import { toast } from '@/ui/Toast';
 
 type Step = 'form' | 'review' | 'broadcast';
@@ -99,6 +100,14 @@ export function Send({ onBack, onSent, onPickContact, initialRecipient, initialA
   const feeRate     = rateFor(tierIdx);
   const feeEst      = estFeeGrains(tierIdx);
 
+  // USD helpers — null when price not yet loaded.
+  const priceUsd = c.priceUsd ?? null;
+  const usdOf    = (grains: bigint): number | null =>
+    priceUsd != null ? grainsToPearl(grains) * priceUsd : null;
+  const amountUsd  = priceUsd != null && amountValid ? num * priceUsd : null;
+  const balanceUsd = usdOf(balance);
+  const feeUsd     = usdOf(feeEst);
+
   async function doSend() {
     const hd = getHD();
     if (!hd || !c.scan) return;
@@ -179,8 +188,16 @@ export function Send({ onBack, onSent, onPickContact, initialRecipient, initialA
               />
               <span className="px-3 py-2.5 bg-ink-800 border border-ink-700 rounded-r-lg text-sm text-pearl-400">PEARL</span>
             </div>
-            <div className="text-xs text-pearl-600 mt-1">
-              Balance: {c.scan ? formatPearl(c.scan.balance, 4) : '—'}
+            <div className="text-xs text-pearl-600 mt-1 flex justify-between">
+              <span>
+                Balance: {c.scan ? formatPearl(c.scan.balance, 4) : '—'}
+                {balanceUsd != null && (
+                  <span className="text-pearl-500 ml-1">≈ ${fmtUsd(balanceUsd)}</span>
+                )}
+              </span>
+              {amountUsd != null && (
+                <span className="text-pearl-500">≈ ${fmtUsd(amountUsd)}</span>
+              )}
             </div>
             {amountValid && !hasFunds && <div className="text-xs text-rose-700 dark:text-rose-400 mt-1">Insufficient balance</div>}
           </label>
@@ -210,7 +227,10 @@ export function Send({ onBack, onSent, onPickContact, initialRecipient, initialA
             </div>
             <div className="text-[11px] text-pearl-600 mt-1.5 flex justify-between">
               <span>{String(feeRate)} grains/vB</span>
-              <span>Est. fee: <span className="text-pearl-400 font-mono">{formatPearl(feeEst, 8)} PEARL</span></span>
+              <span>
+                Est. fee: <span className="text-pearl-400 font-mono">{formatPearl(feeEst, 8)} PEARL</span>
+                {feeUsd != null && <span className="text-pearl-500 ml-1">≈ ${fmtUsd(feeUsd)}</span>}
+              </span>
             </div>
           </div>
 
@@ -235,8 +255,10 @@ export function Send({ onBack, onSent, onPickContact, initialRecipient, initialA
                   {recipient.trim()}
                 </div>
               </div>
-              <Row label="Amount"      value={`${formatPearl(amountGrains, 8)} PEARL`} />
-              <Row label="Network fee" value={`~${formatPearl(feeEst, 8)} PEARL (${TIERS[tierIdx].label})`} />
+              <Row label="Amount"      value={`${formatPearl(amountGrains, 8)} PEARL`}
+                   sub={amountUsd != null ? `≈ $${fmtUsd(amountUsd)}` : undefined} />
+              <Row label="Network fee" value={`~${formatPearl(feeEst, 8)} PEARL (${TIERS[tierIdx].label})`}
+                   sub={feeUsd != null ? `≈ $${fmtUsd(feeUsd)}` : undefined} />
               <Row label="Fee rate"    value={`${String(feeRate)} grains/vB`} mono />
             </div>
             <p className="text-xs text-pearl-600 leading-relaxed">
@@ -264,11 +286,14 @@ export function Send({ onBack, onSent, onPickContact, initialRecipient, initialA
   );
 }
 
-function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function Row({ label, value, sub, mono }: { label: string; value: string; sub?: string; mono?: boolean }) {
   return (
     <div className="flex items-start justify-between gap-3">
       <span className="text-pearl-600 text-[11px] uppercase tracking-wider font-semibold shrink-0 pt-0.5">{label}</span>
-      <span className={`text-pearl-200 text-right ${mono ? 'font-mono' : ''} break-all`}>{value}</span>
+      <div className="text-right">
+        <div className={`text-pearl-200 ${mono ? 'font-mono' : ''} break-all`}>{value}</div>
+        {sub && <div className="text-[11px] text-pearl-500 font-mono mt-0.5">{sub}</div>}
+      </div>
     </div>
   );
 }

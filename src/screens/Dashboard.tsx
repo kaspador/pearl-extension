@@ -104,6 +104,7 @@ export function Dashboard({ onSend, onReceive, onSettings, onLocked, onOpenTx }:
               {recent.map(tx => {
                 const pearlAmt = Math.abs(grainsToPearl(BigInt(Math.round(tx.net))));
                 const sign = tx.direction === 'in' ? '+' : tx.direction === 'out' ? '−' : '';
+                const txUsd = c.priceUsd != null ? pearlAmt * c.priceUsd : null;
                 return (
                   <li key={tx.txid}>
                     <button
@@ -126,8 +127,15 @@ export function Dashboard({ onSend, onReceive, onSettings, onLocked, onOpenTx }:
                         </div>
                         <div className="text-[11px] text-pearl-600 truncate">{tx.time ? timeAgo(tx.time) : (tx.confirmed ? '' : 'pending')}</div>
                       </div>
-                      <div className="font-mono text-sm text-pearl-200 shrink-0">
-                        {sign}{pearlAmt.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 8 })}
+                      <div className="text-right shrink-0">
+                        <div className="font-mono text-sm text-pearl-200">
+                          {sign}{pearlAmt.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 8 })}
+                        </div>
+                        {txUsd != null && (
+                          <div className="font-mono text-[10px] text-pearl-600">
+                            {sign}${fmtUsd(txUsd)}
+                          </div>
+                        )}
                       </div>
                     </button>
                   </li>

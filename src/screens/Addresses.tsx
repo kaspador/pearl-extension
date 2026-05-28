@@ -6,11 +6,11 @@ import { useEffect, useState } from 'react';
 import { getCache, refreshWallet } from '@/state/walletState';
 import { getHD } from '@/state/session';
 import { deriveAddress } from '@/pearl/wallet';
-import { formatPearl } from '@/pearl/network';
+import { formatPearl, grainsToPearl } from '@/pearl/network';
 import { buildCompoundTx } from '@/pearl/transaction';
 import { broadcastTx } from '@/api/client';
 import { loadMeta } from '@/storage/vault';
-import { shortAddr } from '@/ui/format';
+import { shortAddr, fmtUsd } from '@/ui/format';
 import { toast } from '@/ui/Toast';
 
 interface AddrRow {
@@ -35,6 +35,8 @@ export function Addresses({ onBack }: { onBack: () => void }) {
   const utxoCount = scan?.utxos.length ?? 0;
   const funded = (scan?.addresses ?? []).filter(a => a.balance > 0n);
   const canCompound = utxoCount >= 2;
+  const priceUsd = c.priceUsd ?? null;
+  const totalUsd = scan && priceUsd != null ? grainsToPearl(scan.balance) * priceUsd : null;
 
   const visible: AddrRow[] = (scan?.addresses ?? []).filter(a =>
     a.used || a.balance > 0n || (a.chain === 0 && a.address === scan?.receiveAddress),
@@ -87,6 +89,9 @@ export function Addresses({ onBack }: { onBack: () => void }) {
           <div className="text-xl font-semibold font-mono text-pearl-200 mt-1 leading-tight">
             {scan ? formatPearl(scan.balance, 8) : '—'} <span className="text-xs text-pearl-600 font-normal">PEARL</span>
           </div>
+          {totalUsd != null && (
+            <div className="text-xs text-pearl-600 font-mono">≈ ${fmtUsd(totalUsd)}</div>
+          )}
           <div className="text-[11px] text-pearl-600 mt-0.5">
             {funded.length} funded · {utxoCount} unspent output{utxoCount === 1 ? '' : 's'}
           </div>
@@ -159,9 +164,16 @@ export function Addresses({ onBack }: { onBack: () => void }) {
               </div>
               <div className="flex items-center justify-between gap-2">
                 <span className="font-mono text-xs text-pearl-400 truncate">{shortAddr(a.address, 14, 8)}</span>
-                <span className={`font-mono text-xs font-semibold shrink-0 ${a.balance > 0n ? 'text-pearl-200' : 'text-pearl-700'}`}>
-                  {formatPearl(a.balance, 4)}
-                </span>
+                <div className="text-right shrink-0">
+                  <div className={`font-mono text-xs font-semibold ${a.balance > 0n ? 'text-pearl-200' : 'text-pearl-700'}`}>
+                    {formatPearl(a.balance, 4)}
+                  </div>
+                  {a.balance > 0n && priceUsd != null && (
+                    <div className="font-mono text-[10px] text-pearl-600">
+                      ${fmtUsd(grainsToPearl(a.balance) * priceUsd)}
+                    </div>
+                  )}
+                </div>
               </div>
             </button>
           ))}
