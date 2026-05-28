@@ -86,6 +86,16 @@ export function Create({ onBack, onDone }: Props) {
             ))}
           </div>
 
+          <button
+            onClick={async () => {
+              await navigator.clipboard.writeText(mnemonic);
+              toast('Phrase copied — paste it into a password manager');
+            }}
+            className="rounded-lg border border-ink-700 hover:bg-ink-800 py-2 text-xs text-pearl-300"
+          >
+            ⧉ Copy 12-word phrase
+          </button>
+
           <label className="flex items-start gap-2 mt-1 cursor-pointer">
             <input
               type="checkbox"
@@ -94,7 +104,7 @@ export function Create({ onBack, onDone }: Props) {
               className="mt-1 shrink-0"
             />
             <span className="text-xs text-pearl-500 leading-relaxed">
-              I&apos;ve written these 12 words on paper somewhere safe.
+              I&apos;ve saved these 12 words somewhere safe.
             </span>
           </label>
         </div>
