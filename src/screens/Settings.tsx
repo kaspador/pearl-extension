@@ -11,12 +11,14 @@ import { toast } from '@/ui/Toast';
 const DEFAULT_BACKEND = 'https://pearlchain.live';
 
 interface SettingsProps {
-  onBack:     () => void;
-  onLocked:   () => void;
-  onViewSeed: () => void;
+  onBack:      () => void;
+  onLocked:    () => void;
+  onViewSeed:  () => void;
+  onAddresses: () => void;
+  onContacts:  () => void;
 }
 
-export function Settings({ onBack, onLocked, onViewSeed }: SettingsProps) {
+export function Settings({ onBack, onLocked, onViewSeed, onAddresses, onContacts }: SettingsProps) {
   const [meta, setMeta]       = useState<WalletMeta | null>(null);
   const [url,  setUrl]        = useState('');
   const [busy, setBusy]       = useState(false);
@@ -139,8 +141,20 @@ export function Settings({ onBack, onLocked, onViewSeed }: SettingsProps) {
         <section>
           <div className="text-[11px] uppercase tracking-wider text-pearl-600 mb-2 font-semibold">Wallet</div>
           <button
-            onClick={onViewSeed}
+            onClick={onAddresses}
             className="w-full text-left rounded-lg py-2.5 px-3 text-sm border border-ink-700 hover:bg-ink-800 text-pearl-300"
+          >
+            Addresses &amp; Compound
+          </button>
+          <button
+            onClick={onContacts}
+            className="mt-2 w-full text-left rounded-lg py-2.5 px-3 text-sm border border-ink-700 hover:bg-ink-800 text-pearl-300"
+          >
+            Address book
+          </button>
+          <button
+            onClick={onViewSeed}
+            className="mt-2 w-full text-left rounded-lg py-2.5 px-3 text-sm border border-ink-700 hover:bg-ink-800 text-pearl-300"
           >
             View 12-word phrase
           </button>

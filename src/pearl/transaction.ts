@@ -111,3 +111,55 @@ export function buildAndSignTx(args: SendArgs): BuiltTx {
     inputCount:   picked.length,
   };
 }
+
+export interface CompoundArgs {
+  hd:          HDKey;
+  network:     PearlNetwork;
+  utxos:       ScannedUtxo[];   // everything spendable
+  destination: string;          // where to consolidate (typically receive #0)
+  feeRate:     bigint;
+}
+
+// Sweep ALL UTXOs into a single output at `destination`. Useful when funds
+// are scattered across many derived addresses (e.g. change from a wallet
+// that rotates addresses). One network fee, one input set, one output.
+export function buildCompoundTx(args: CompoundArgs): BuiltTx {
+  const NET = args.network === 'testnet' ? PEARL_NET_TESTNET : PEARL_NET;
+
+  if (args.utxos.length === 0) throw new Error('Nothing to compound.');
+  if (args.utxos.length === 1) throw new Error('Only one UTXO — nothing to consolidate.');
+
+  const total  = args.utxos.reduce((s, u) => s + u.value, 0n);
+  const fee    = estVbytes(args.utxos.length, 1) * args.feeRate;
+  const output = total - fee;
+  if (output <= DUST_LIMIT) {
+    throw new Error('Balance too small to cover the consolidation fee.');
+  }
+
+  const tx = new btc.Transaction({ allowUnknownOutputs: false });
+  const keyByHex = new Map<string, Uint8Array>();
+
+  for (const u of args.utxos) {
+    const priv  = keyForUtxo(args.hd, args.network, u);
+    const xOnly = toXOnlyPubkey(secp256k1.getPublicKey(priv, true));
+    keyByHex.set(bytesToHex(priv), priv);
+    tx.addInput({
+      txid: u.txid, index: u.vout,
+      witnessUtxo: { script: addressToTaprootScript(u.address), amount: u.value },
+      tapInternalKey: xOnly,
+    });
+  }
+
+  tx.addOutputAddress(args.destination, output, NET);
+
+  signWithAll(tx, [...keyByHex.values()]);
+  tx.finalize();
+
+  return {
+    hex:          bytesToHex(tx.extract()),
+    txid:         tx.id,
+    feeGrains:    fee,
+    changeGrains: 0n,
+    inputCount:   args.utxos.length,
+  };
+}

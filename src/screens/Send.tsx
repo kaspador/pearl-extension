@@ -20,10 +20,20 @@ const TIERS: FeeTier[] = [
   { label: 'Priority', mult: 1.5 },
 ];
 
-export function Send({ onBack, onSent }: { onBack: () => void; onSent: (txid: string) => void }) {
+interface SendProps {
+  onBack:     () => void;
+  onSent:     (txid: string) => void;
+  onPickContact: () => void;
+  // Pre-filled values, e.g. when the user came back from picking a contact
+  // or arrived from a parsed BIP-21 URI.
+  initialRecipient?: string;
+  initialAmount?:    string;
+}
+
+export function Send({ onBack, onSent, onPickContact, initialRecipient, initialAmount }: SendProps) {
   const [step, setStep]         = useState<Step>('form');
-  const [recipient, setRecip]   = useState('');
-  const [amount, setAmount]     = useState('');
+  const [recipient, setRecip]   = useState(initialRecipient ?? '');
+  const [amount, setAmount]     = useState(initialAmount ?? '');
   const [tierIdx, setTierIdx]   = useState(1);
   const [busy, setBusy]         = useState(false);
 
@@ -89,7 +99,14 @@ export function Send({ onBack, onSent }: { onBack: () => void; onSent: (txid: st
       {step === 'form' && (
         <div className="p-5 flex flex-col gap-4 flex-1">
           <label className="block">
-            <span className="text-[11px] uppercase tracking-wider text-pearl-600 font-semibold">Recipient</span>
+            <span className="text-[11px] uppercase tracking-wider text-pearl-600 font-semibold flex justify-between items-center">
+              <span>Recipient</span>
+              <button
+                onClick={onPickContact}
+                className="text-[11px] text-pearl-500 hover:text-pearl-200 underline decoration-pearl-700"
+                type="button"
+              >From contacts</button>
+            </span>
             <input
               value={recipient}
               onChange={(e) => onPasteRecipient(e.target.value)}

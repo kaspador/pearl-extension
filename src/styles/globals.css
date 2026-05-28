@@ -73,9 +73,8 @@ html, body, #root {
 
 .popup-shell {
   width: 360px;
-  min-height: 540px;
-  max-height: 600px;
-  overflow-y: auto;
+  height: 580px;
+  overflow: hidden;
 }
 
 .pearl-btn {
