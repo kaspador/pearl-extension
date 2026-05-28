@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+@theme {
+  /* Ported from pearlchain.live so popup + web share the same look. */
+  --color-ink-950:  #111110;
+  --color-ink-900:  #161615;
+  --color-ink-800:  #1f1f1e;
+  --color-ink-700:  #272726;
+  --color-ink-600:  #313130;
+  --color-ink-500:  #3e3e3c;
+  --color-ink-400:  #4e4e4b;
+
+  --color-pearl-200: #f0efea;
+  --color-pearl-300: #e8e5de;
+  --color-pearl-400: #d8d0c5;
+  --color-pearl-500: #c4b8aa;
+  --color-pearl-600: #a89888;
+  --color-pearl-700: #887565;
+  --color-pearl-800: #5a4e42;
+  --color-pearl-900: #3a3028;
+
+  /* Semantic accents — mirror mobile src/ui/theme.ts */
+  --color-emerald: #10b981;   /* success / received */
+  --color-amber:   #f59e0b;   /* warnings */
+  --color-rose:    #ef4444;   /* errors / destructive */
+  --color-lime:    #a3e635;   /* live indicator */
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Source Code Pro', ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root {
+  margin: 0;
+  background-color: var(--color-ink-950);
+  color: var(--color-pearl-200);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Popup is a fixed-size surface — Chrome won't grow it past 800×600. */
+.popup-shell {
+  width: 360px;
+  min-height: 540px;
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+/* Pearl button (matches pearlchain.live/wallet) */
+.pearl-btn {
+  background-color: var(--color-pearl-200);
+  color: var(--color-ink-950);
+  font-weight: 600;
+}
+.pearl-btn:hover { background-color: var(--color-pearl-300); }
+.pearl-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--color-ink-800); }
+::-webkit-scrollbar-thumb { background: var(--color-ink-500); border-radius: 3px; }
