@@ -2,7 +2,12 @@
 
 import logoUrl from '@/assets/logo.png';
 
-export function Onboarding({ onImport }: { onImport: () => void }) {
+interface Props {
+  onCreate: () => void;
+  onImport: () => void;
+}
+
+export function Onboarding({ onCreate, onImport }: Props) {
   return (
     <div className="flex-1 flex flex-col p-6">
       <div className="flex-1 flex flex-col items-center justify-center text-center gap-5">
@@ -18,7 +23,7 @@ export function Onboarding({ onImport }: { onImport: () => void }) {
 
       <div className="flex flex-col gap-2.5">
         <button
-          onClick={() => chrome.runtime.openOptionsPage()}
+          onClick={onCreate}
           className="pearl-btn rounded-xl py-3 text-sm"
         >
           Create new wallet

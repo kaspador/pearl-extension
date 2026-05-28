@@ -38,9 +38,8 @@ export default defineManifest({
     type: 'module',
   },
 
-  // Full-page for onboarding (seed display) — the popup is too small to
-  // safely show a 12-word phrase. Opened via chrome.tabs.create().
-  options_page: 'src/options/index.html',
+  // No options page — every flow (including new-wallet creation and seed
+  // reveal) lives inside the popup for a single, consistent UX surface.
 
   permissions: [
     'storage',          // encrypted vault lives in chrome.storage.local

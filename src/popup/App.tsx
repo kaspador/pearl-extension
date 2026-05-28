@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Onboarding } from '@/screens/Onboarding';
+import { Create }     from '@/screens/Create';
 import { Import }     from '@/screens/Import';
 import { Unlock }     from '@/screens/Unlock';
 import { Dashboard, type TxClickArgs } from '@/screens/Dashboard';
@@ -17,7 +18,7 @@ import { setBackend } from '@/api/client';
 
 export type Screen =
   | 'loading'
-  | 'onboarding' | 'import' | 'unlock'
+  | 'onboarding' | 'create' | 'import' | 'unlock'
   | 'dashboard' | 'send' | 'receive' | 'settings'
   | 'view-seed' | 'tx-detail' | 'addresses' | 'contacts' | 'pick-contact';
 
@@ -51,7 +52,17 @@ export function App() {
       )}
 
       {screen === 'onboarding' && (
-        <Onboarding onImport={() => setScreen('import')} />
+        <Onboarding
+          onCreate={() => setScreen('create')}
+          onImport={() => setScreen('import')}
+        />
+      )}
+
+      {screen === 'create' && (
+        <Create
+          onBack={() => setScreen('onboarding')}
+          onDone={() => setScreen('dashboard')}
+        />
       )}
 
       {screen === 'import' && (
