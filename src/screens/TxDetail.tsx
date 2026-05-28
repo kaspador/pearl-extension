@@ -1,6 +1,8 @@
 // Transaction detail — opened by tapping a row in the activity list.
-// Mirrors mobile's app/tx/[txid].tsx: amount header, status/block/fee,
-// inputs/outputs, copyable txid, "View on Explorer".
+//
+// Layout: fixed header on top, scrollable content middle, pinned
+// "View on Explorer" CTA on bottom. The CTA NEVER scrolls off — the
+// content area scrolls inside its flex region.
 
 import { useEffect, useState } from 'react';
 import { getTx, type TxDetail as TxDetailDto, getBaseUrl } from '@/api/client';
@@ -11,7 +13,7 @@ import { toast } from '@/ui/Toast';
 
 interface Props {
   txid:      string;
-  net:       number;          // grains
+  net:       number;
   direction: 'in' | 'out' | 'self';
   time:      number | null;
   blockHeight: number | null;
@@ -67,15 +69,16 @@ export function TxDetail({ txid, net, direction, time, blockHeight, onBack }: Pr
   }
 
   return (
-    <div className="flex-1 flex flex-col">
-      <header className="flex items-center gap-3 px-5 pt-4 pb-3 border-b border-ink-700">
+    <div className="flex-1 flex flex-col min-h-0">
+      <header className="flex items-center gap-3 px-5 pt-4 pb-3 border-b border-ink-700 shrink-0">
         <button onClick={onBack} className="text-pearl-500 hover:text-pearl-200 text-sm">←</button>
         <h1 className="text-base font-semibold text-pearl-200">Transaction</h1>
       </header>
 
-      <div className="p-4 flex-1 overflow-y-auto flex flex-col gap-3">
+      {/* Scrollable content */}
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-3">
         {/* Amount header */}
-        <div className="text-center py-3">
+        <div className="text-center py-2">
           <div className="text-[11px] uppercase tracking-wider text-pearl-600 font-semibold">{label}</div>
           <div className={`text-2xl font-semibold font-mono mt-1 ${dirColor}`}>
             {sign}{formatPearl(magnitude, 8)} <span className="text-sm text-pearl-600 font-normal">PEARL</span>
@@ -139,17 +142,26 @@ export function TxDetail({ txid, net, direction, time, blockHeight, onBack }: Pr
           </div>
         )}
 
-        {/* Txid */}
-        <button
-          onClick={() => copy(txid, 'Transaction ID')}
-          className="bg-ink-900 border border-ink-700 rounded-xl p-3 text-left hover:bg-ink-800"
-        >
-          <div className="text-[11px] uppercase tracking-wider text-pearl-600 font-semibold mb-1">Transaction ID</div>
-          <div className="font-mono text-xs text-pearl-300 break-all leading-relaxed">{txid}</div>
-          <div className="text-[10px] text-pearl-600 mt-1">tap to copy</div>
-        </button>
+        {/* TXID — shortened so it sits on one line, full hex copied on click */}
+        <div className="bg-ink-900 border border-ink-700 rounded-xl p-3">
+          <div className="flex items-center justify-between mb-1">
+            <div className="text-[11px] uppercase tracking-wider text-pearl-600 font-semibold">Transaction ID</div>
+            <button
+              onClick={() => copy(txid, 'Transaction ID')}
+              className="text-[11px] text-pearl-500 hover:text-pearl-200 underline decoration-pearl-700"
+            >
+              Copy
+            </button>
+          </div>
+          <div className="font-mono text-xs text-pearl-300 truncate">
+            {txid.slice(0, 16)}…{txid.slice(-12)}
+          </div>
+        </div>
+      </div>
 
-        <button onClick={openExplorer} className="pearl-btn rounded-xl py-3 text-sm mt-1">
+      {/* Pinned CTA — never scrolls off */}
+      <div className="px-4 pt-2 pb-4 border-t border-ink-700 shrink-0">
+        <button onClick={openExplorer} className="pearl-btn rounded-xl py-3 text-sm w-full">
           View on Explorer ↗
         </button>
       </div>
