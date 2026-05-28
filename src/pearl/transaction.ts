@@ -1,0 +1,113 @@
+// Taproot key-path send. Mirrors mobile transaction.ts but Buffer-free.
+
+import * as btc from '@scure/btc-signer';
+import { secp256k1 } from '@noble/curves/secp256k1';
+import { type HDKey } from '@scure/bip32';
+import { decodeBech32m } from './address';
+import { getPrivateKey, toXOnlyPubkey } from './wallet';
+import { type PearlNetwork, DUST_LIMIT } from './network';
+import type { ScannedUtxo } from './hdwallet';
+import { bytesToHex } from './bytes';
+
+const PEARL_NET: typeof btc.NETWORK         = { ...btc.NETWORK, bech32: 'prl'  };
+const PEARL_NET_TESTNET: typeof btc.NETWORK = { ...btc.NETWORK, bech32: 'tprl' };
+
+export interface BuiltTx {
+  hex:          string;
+  txid:         string;
+  feeGrains:    bigint;
+  changeGrains: bigint;
+  inputCount:   number;
+}
+
+function addressToTaprootScript(address: string): Uint8Array {
+  const d = decodeBech32m(address);
+  if (!d || d.witnessVersion !== 1 || d.witnessProgram.length !== 32) {
+    throw new Error('Invalid Pearl Taproot address');
+  }
+  const s = new Uint8Array(34);
+  s[0] = 0x51;
+  s[1] = 0x20;
+  s.set(d.witnessProgram, 2);
+  return s;
+}
+
+function estVbytes(nIn: number, nOut: number): bigint {
+  return BigInt(58 * nIn + 43 * nOut + 11);
+}
+
+function selectUtxos(
+  utxos: ScannedUtxo[], amount: bigint, feeRate: bigint,
+): { picked: ScannedUtxo[]; total: bigint; estFee: bigint } {
+  const sorted = [...utxos].sort((a, b) => (b.value > a.value ? 1 : b.value < a.value ? -1 : 0));
+  const picked: ScannedUtxo[] = [];
+  let total = 0n;
+  for (const u of sorted) {
+    picked.push(u);
+    total += u.value;
+    const estFee = estVbytes(picked.length, 2) * feeRate;
+    if (total >= amount + estFee) return { picked, total, estFee };
+  }
+  return { picked, total, estFee: estVbytes(picked.length, 2) * feeRate };
+}
+
+function keyForUtxo(hd: HDKey, network: PearlNetwork, u: ScannedUtxo): Uint8Array {
+  return getPrivateKey(hd, u.chain, u.index, network);
+}
+
+function signWithAll(tx: btc.Transaction, keys: Uint8Array[]) {
+  for (const k of keys) {
+    try { tx.sign(k); } catch { /* key matches no input — skip */ }
+  }
+}
+
+export interface SendArgs {
+  hd:           HDKey;
+  network:      PearlNetwork;
+  recipient:    string;
+  amount:       bigint;
+  utxos:        ScannedUtxo[];
+  feeRate:      bigint;
+  changeAddress: string;
+}
+
+export function buildAndSignTx(args: SendArgs): BuiltTx {
+  const NET = args.network === 'testnet' ? PEARL_NET_TESTNET : PEARL_NET;
+  const { picked, total, estFee } = selectUtxos(args.utxos, args.amount, args.feeRate);
+  if (total < args.amount + estFee) {
+    throw new Error(`Insufficient funds: have ${total} grains, need ${args.amount + estFee} (incl. fee).`);
+  }
+  const tx = new btc.Transaction({ allowUnknownOutputs: false });
+  const keyByHex = new Map<string, Uint8Array>();
+  for (const u of picked) {
+    const priv  = keyForUtxo(args.hd, args.network, u);
+    const xOnly = toXOnlyPubkey(secp256k1.getPublicKey(priv, true));
+    keyByHex.set(bytesToHex(priv), priv);
+    tx.addInput({
+      txid: u.txid, index: u.vout,
+      witnessUtxo: { script: addressToTaprootScript(u.address), amount: u.value },
+      tapInternalKey: xOnly,
+    });
+  }
+  tx.addOutputAddress(args.recipient, args.amount, NET);
+
+  let change = total - args.amount - estFee;
+  let feeGrains = estFee;
+  if (change > DUST_LIMIT) {
+    tx.addOutputAddress(args.changeAddress, change, NET);
+  } else {
+    feeGrains = total - args.amount;
+    change    = 0n;
+  }
+
+  signWithAll(tx, [...keyByHex.values()]);
+  tx.finalize();
+
+  return {
+    hex:          bytesToHex(tx.extract()),
+    txid:         tx.id,
+    feeGrains,
+    changeGrains: change,
+    inputCount:   picked.length,
+  };
+}

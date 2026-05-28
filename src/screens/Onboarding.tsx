@@ -1,16 +1,10 @@
 // Welcome screen — first thing users see after install.
-// Mirrors mobile onboarding tone: brand mark, one-line value prop,
-// two primary paths (create / import), tiny safety footnote.
-//
-// "Create new wallet" opens the full-window options page because the popup
-// is too cramped + screenshot-prone for showing a 12-word seed phrase.
-// "Import" stays in the popup — pasting is fine here.
-//
-// TODO (next turn): wire actual create/import flows.
+// "Create" opens the full-window options page (popup too cramped + screenshot-prone for seed display).
+// "Import" stays in the popup — pasting is fine.
 
 import logoUrl from '@/assets/logo.png';
 
-export function Onboarding({ onDone }: { onDone: () => void }) {
+export function Onboarding({ onImport }: { onImport: () => void }) {
   return (
     <div className="flex-1 flex flex-col p-6">
       <div className="flex-1 flex flex-col items-center justify-center text-center gap-4">
@@ -31,7 +25,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
           Create new wallet
         </button>
         <button
-          onClick={onDone}
+          onClick={onImport}
           className="rounded-xl py-2.5 text-sm border border-ink-700 hover:bg-ink-800 text-pearl-300"
         >
           Import 12-word phrase
