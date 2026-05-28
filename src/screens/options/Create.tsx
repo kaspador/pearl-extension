@@ -53,7 +53,7 @@ export function Create({ onDone }: { onDone: () => void }) {
       <div>
         <h1 className="text-2xl font-semibold text-pearl-200">Your 12-word recovery phrase</h1>
         <p className="text-sm text-pearl-500 mt-2 leading-relaxed max-w-2xl">
-          Write these down on paper and store somewhere safe. <strong className="text-rose-300">If you lose this phrase, your funds are gone forever — there is no support team, no central server, no backup.</strong>
+          Write these down on paper and store somewhere safe. <strong className="text-rose-700 dark:text-rose-300">If you lose this phrase, your funds are gone forever — there is no support team, no central server, no backup.</strong>
         </p>
 
         <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 gap-2 max-w-2xl">

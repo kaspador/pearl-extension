@@ -5,6 +5,7 @@ import { loadMeta, updateMeta, clearWallet, type WalletMeta } from '@/storage/va
 import { detectBackend, setBackend, type BackendMode } from '@/api/client';
 import { lock } from '@/state/session';
 import { clearCache } from '@/state/walletState';
+import { applyTheme, loadTheme, saveTheme, type ThemeMode } from '@/state/theme';
 import { toast } from '@/ui/Toast';
 
 const DEFAULT_BACKEND = 'https://pearlchain.live';
@@ -14,12 +15,20 @@ export function Settings({ onBack, onLocked }: { onBack: () => void; onLocked: (
   const [url,  setUrl]        = useState('');
   const [busy, setBusy]       = useState(false);
   const [confirmDel, setDel]  = useState(false);
+  const [theme, setTheme]     = useState<ThemeMode>('system');
 
   useEffect(() => { (async () => {
     const m = await loadMeta();
     setMeta(m);
     setUrl(m?.explorerUrl ?? DEFAULT_BACKEND);
+    setTheme(await loadTheme());
   })(); }, []);
+
+  async function setThemeMode(mode: ThemeMode) {
+    setTheme(mode);
+    await saveTheme(mode);
+    applyTheme(mode);
+  }
 
   async function saveBackend() {
     setBusy(true);
@@ -79,6 +88,27 @@ export function Settings({ onBack, onLocked }: { onBack: () => void; onLocked: (
         </section>
 
         <section>
+          <div className="text-[10px] uppercase tracking-wider text-pearl-600 mb-2">Appearance</div>
+          <div className="grid grid-cols-3 gap-1.5">
+            {([
+              { label: 'Light',  v: 'light'  },
+              { label: 'Dark',   v: 'dark'   },
+              { label: 'System', v: 'system' },
+            ] as { label: string; v: ThemeMode }[]).map(opt => (
+              <button
+                key={opt.v}
+                onClick={() => setThemeMode(opt.v)}
+                className={`rounded-lg py-1.5 text-[11px] border ${
+                  theme === opt.v
+                    ? 'border-pearl-500 text-pearl-200 bg-ink-800'
+                    : 'border-ink-700 text-pearl-500 hover:bg-ink-800'
+                }`}
+              >{opt.label}</button>
+            ))}
+          </div>
+        </section>
+
+        <section>
           <div className="text-[10px] uppercase tracking-wider text-pearl-600 mb-2">Auto-lock</div>
           <div className="grid grid-cols-4 gap-1.5">
             {[
@@ -116,7 +146,7 @@ export function Settings({ onBack, onLocked }: { onBack: () => void; onLocked: (
           </button>
           {confirmDel ? (
             <div className="mt-2 rounded-lg p-3 border border-rose-500/40 bg-rose-500/10">
-              <p className="text-[11px] text-rose-300 leading-relaxed">
+              <p className="text-[11px] text-rose-700 dark:text-rose-300 leading-relaxed">
                 This erases the encrypted wallet from this browser. Make sure you have your 12-word phrase backed up.
               </p>
               <div className="flex gap-2 mt-2">
@@ -133,7 +163,7 @@ export function Settings({ onBack, onLocked }: { onBack: () => void; onLocked: (
           ) : (
             <button
               onClick={() => setDel(true)}
-              className="mt-2 w-full text-left rounded-lg py-2 px-3 text-xs border border-rose-500/40 text-rose-300 hover:bg-rose-500/10"
+              className="mt-2 w-full text-left rounded-lg py-2 px-3 text-xs border border-rose-500/40 text-rose-700 dark:text-rose-300 hover:bg-rose-500/10"
             >
               Delete wallet
             </button>

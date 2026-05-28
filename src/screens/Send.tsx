@@ -99,7 +99,7 @@ export function Send({ onBack, onSent }: { onBack: () => void; onSent: (txid: st
               autoCapitalize="off"
               className="mt-1 w-full bg-ink-800 border border-ink-700 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-pearl-700"
             />
-            {recipient && !addrValid && <div className="text-[10px] text-rose-400 mt-1">Invalid Pearl address</div>}
+            {recipient && !addrValid && <div className="text-[10px] text-rose-700 dark:text-rose-400 mt-1">Invalid Pearl address</div>}
           </label>
 
           <label className="block">
@@ -123,7 +123,7 @@ export function Send({ onBack, onSent }: { onBack: () => void; onSent: (txid: st
             <div className="text-[10px] text-pearl-700 mt-1">
               Balance: {c.scan ? formatPearl(c.scan.balance, 4) : '—'}
             </div>
-            {amountValid && !hasFunds && <div className="text-[10px] text-rose-400 mt-1">Insufficient balance</div>}
+            {amountValid && !hasFunds && <div className="text-[10px] text-rose-700 dark:text-rose-400 mt-1">Insufficient balance</div>}
           </label>
 
           <div>

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { lock } from '@/state/session';
 import { getCache, refreshWallet } from '@/state/walletState';
-import { formatPearl } from '@/pearl/network';
+import { formatPearl, grainsToPearl } from '@/pearl/network';
 import { shortAddr, fmtUsd, timeAgo } from '@/ui/format';
 import { toast } from '@/ui/Toast';
 
@@ -92,19 +92,29 @@ export function Dashboard({ onSend, onReceive, onSettings, onLocked }: Dashboard
           </div>
         ) : (
           <ul className="space-y-1.5">
-            {recent.map(tx => (
-              <li key={tx.txid} className="flex items-center justify-between text-xs">
-                <div>
-                  <div className={tx.direction === 'in' ? 'text-emerald-400' : tx.direction === 'out' ? 'text-rose-400' : 'text-pearl-400'}>
-                    {tx.direction === 'in' ? '↓ Received' : tx.direction === 'out' ? '↑ Sent' : '↔ Self'}
+            {recent.map(tx => {
+              // Both backends return tx amounts in grains (smallest unit).
+              // Convert to PEARL for display.
+              const pearlAmt = Math.abs(grainsToPearl(BigInt(Math.round(tx.net))));
+              const sign = tx.direction === 'in' ? '+' : tx.direction === 'out' ? '−' : '';
+              return (
+                <li key={tx.txid} className="flex items-center justify-between text-xs">
+                  <div>
+                    <div className={
+                      tx.direction === 'in'  ? 'text-emerald-700 dark:text-emerald-400'
+                    : tx.direction === 'out' ? 'text-rose-700 dark:text-rose-400'
+                    :                          'text-pearl-400'
+                    }>
+                      {tx.direction === 'in' ? '↓ Received' : tx.direction === 'out' ? '↑ Sent' : '↔ Self'}
+                    </div>
+                    <div className="text-[10px] text-pearl-700">{tx.time ? timeAgo(tx.time) : (tx.confirmed ? '' : 'pending')}</div>
                   </div>
-                  <div className="text-[10px] text-pearl-700">{tx.time ? timeAgo(tx.time) : (tx.confirmed ? '' : 'pending')}</div>
-                </div>
-                <div className="font-mono text-pearl-200">
-                  {tx.direction === 'in' ? '+' : tx.direction === 'out' ? '−' : ''}{Math.abs(tx.net).toFixed(4)}
-                </div>
-              </li>
-            ))}
+                  <div className="font-mono text-pearl-200">
+                    {sign}{pearlAmt.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 8 })} <span className="text-[10px] text-pearl-600">PEARL</span>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
