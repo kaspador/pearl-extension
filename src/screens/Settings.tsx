@@ -107,7 +107,6 @@ export function Settings({ onBack, onLocked, onViewSeed, onAddresses, onContacts
             </div>
           ) : (
             <Row
-              icon="🌐"
               label="Explorer node"
               hint={(meta?.explorerUrl ?? DEFAULT_BACKEND).replace(/^https?:\/\//, '')}
               badge={currentMode === 'blockbook' ? 'Blockbook' : 'pearlchain'}
@@ -162,10 +161,10 @@ export function Settings({ onBack, onLocked, onViewSeed, onAddresses, onContacts
         </Section>
 
         <Section title="Wallet">
-          <Row icon="🗂"  label="Addresses & Compound" hint="HD list + UTXO sweep" onClick={onAddresses} />
-          <Row icon="👥" label="Address book"          hint="Saved contacts"        onClick={onContacts}  />
-          <Row icon="🔐" label="View 12-word phrase"   hint="Reveal recovery seed"  onClick={onViewSeed}  />
-          <Row icon="🔒" label="Lock wallet"           hint="Forget the session"
+          <Row label="Addresses & Compound" hint="HD list + UTXO sweep" onClick={onAddresses} />
+          <Row label="Address book"        hint="Saved contacts"        onClick={onContacts}  />
+          <Row label="View 12-word phrase" hint="Reveal recovery seed"  onClick={onViewSeed}  />
+          <Row label="Lock wallet"         hint="Forget the session"
                onClick={async () => { await lock(); onLocked(); }} />
         </Section>
 
@@ -187,7 +186,7 @@ export function Settings({ onBack, onLocked, onViewSeed, onAddresses, onContacts
               </div>
             </div>
           ) : (
-            <Row icon="🗑" label="Delete wallet" hint="Wipes the encrypted seed from this browser"
+            <Row label="Delete wallet" hint="Wipes the encrypted seed from this browser"
                  danger onClick={() => setDel(true)} />
           )}
         </Section>
@@ -215,7 +214,6 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
 }
 
 interface RowProps {
-  icon:   string;
   label:  string;
   hint?:  string;
   badge?: string;
@@ -223,25 +221,28 @@ interface RowProps {
   onClick: () => void;
 }
 
-function Row({ icon, label, hint, badge, danger, onClick }: RowProps) {
+function Row({ label, hint, badge, danger, onClick }: RowProps) {
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-ink-800 transition-colors"
+      className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-ink-800 transition-colors"
     >
-      <div className="w-8 h-8 rounded-lg bg-ink-800 flex items-center justify-center text-base shrink-0">
-        {icon}
-      </div>
       <div className="flex-1 min-w-0">
-        <div className={`text-sm font-medium ${danger ? 'text-rose-700 dark:text-rose-400' : 'text-pearl-200'}`}>{label}</div>
-        {hint && <div className="text-[11px] text-pearl-600 mt-0.5 truncate">{hint}</div>}
+        <div className={`text-sm font-semibold ${danger ? 'text-rose-700 dark:text-rose-400' : 'text-pearl-200'}`}>
+          {label}
+        </div>
+        {hint && (
+          <div className={`text-[11px] mt-0.5 truncate ${danger ? 'text-rose-700/70 dark:text-rose-400/70' : 'text-pearl-600'}`}>
+            {hint}
+          </div>
+        )}
       </div>
       {badge && (
-        <span className="text-[10px] uppercase tracking-wider font-semibold text-pearl-500 bg-ink-800 px-1.5 py-0.5 rounded shrink-0">
+        <span className="text-[10px] uppercase tracking-wider font-semibold text-pearl-500 bg-ink-800 border border-ink-700 px-1.5 py-0.5 rounded shrink-0">
           {badge}
         </span>
       )}
-      <span className="text-pearl-600 text-lg shrink-0 leading-none">›</span>
+      <span className="text-pearl-500 text-lg shrink-0 leading-none font-light">›</span>
     </button>
   );
 }

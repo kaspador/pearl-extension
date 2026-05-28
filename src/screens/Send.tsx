@@ -8,7 +8,6 @@ import { broadcastTx } from '@/api/client';
 import { getCache, refreshWallet } from '@/state/walletState';
 import { getHD } from '@/state/session';
 import { loadMeta } from '@/storage/vault';
-import { shortAddr } from '@/ui/format';
 import { toast } from '@/ui/Toast';
 
 type Step = 'form' | 'review' | 'broadcast';
@@ -20,12 +19,45 @@ const TIERS: FeeTier[] = [
   { label: 'Priority', mult: 1.5 },
 ];
 
+// Pearl Taproot tx vbyte estimate. Matches the formula in pearl/transaction.ts
+// (58·inputs + 43·outputs + 11). For the fee preview we assume the common
+// case: 1 input + 2 outputs (recipient + change) = 155 vB.
+const PREVIEW_VBYTES = 58n + 43n * 2n + 11n;  // 155
+
+// Sanitise free-form amount input. Accepts both `,` and `.` as decimal
+// separators (European locale users typed "0,01" and the parse failed),
+// strips anything else, and caps at 8 decimal places (PEARL grain
+// precision — anything past that is lost when we convert to grains).
+function sanitiseAmount(raw: string): string {
+  // Normalise the decimal separator to `.`
+  let s = raw.replace(',', '.');
+  // Strip everything that isn't a digit or a dot
+  s = s.replace(/[^\d.]/g, '');
+  // Collapse multiple dots to the first one
+  const firstDot = s.indexOf('.');
+  if (firstDot !== -1) {
+    s = s.slice(0, firstDot + 1) + s.slice(firstDot + 1).replace(/\./g, '');
+    // Cap fractional digits at 8
+    const [whole, frac = ''] = s.split('.');
+    s = whole + '.' + frac.slice(0, 8);
+    // Strip trailing dot if no fractional digits (allows mid-edit "1.")
+    if (s.endsWith('.') && frac.length === 0) {
+      // Keep the dot so the user can keep typing
+    }
+  }
+  return s;
+}
+
+// Parse the sanitised string into a number. Empty / dot-only → NaN.
+function parseAmount(s: string): number {
+  if (!s || s === '.') return NaN;
+  return parseFloat(s);
+}
+
 interface SendProps {
   onBack:     () => void;
   onSent:     (txid: string) => void;
   onPickContact: () => void;
-  // Pre-filled values, e.g. when the user came back from picking a contact
-  // or arrived from a parsed BIP-21 URI.
   initialRecipient?: string;
   initialAmount?:    string;
 }
@@ -33,7 +65,7 @@ interface SendProps {
 export function Send({ onBack, onSent, onPickContact, initialRecipient, initialAmount }: SendProps) {
   const [step, setStep]         = useState<Step>('form');
   const [recipient, setRecip]   = useState(initialRecipient ?? '');
-  const [amount, setAmount]     = useState(initialAmount ?? '');
+  const [amount, setAmount]     = useState(() => sanitiseAmount(initialAmount ?? ''));
   const [tierIdx, setTierIdx]   = useState(1);
   const [busy, setBusy]         = useState(false);
 
@@ -41,7 +73,7 @@ export function Send({ onBack, onSent, onPickContact, initialRecipient, initialA
     const parsed = parsePaymentUri(v);
     if (parsed) {
       setRecip(parsed.address);
-      if (parsed.amount && !amount) setAmount(String(parsed.amount));
+      if (parsed.amount && !amount) setAmount(sanitiseAmount(String(parsed.amount)));
     } else {
       setRecip(v);
     }
@@ -49,14 +81,23 @@ export function Send({ onBack, onSent, onPickContact, initialRecipient, initialA
 
   const c = getCache();
   const addrValid = isValidAddress(recipient.trim());
-  const num = parseFloat(amount);
+  const num = parseAmount(amount);
   const amountValid = Number.isFinite(num) && num > 0;
   const amountGrains = amountValid ? pearlToGrains(num) : 0n;
   const balance = c.scan?.balance ?? 0n;
   const hasFunds = amountValid && amountGrains <= balance;
 
   const baseFeeRate = BigInt(c.feeRate ?? 1);
-  const feeRate     = BigInt(Math.max(1, Math.round(Number(baseFeeRate) * TIERS[tierIdx].mult)));
+
+  function rateFor(i: number): bigint {
+    return BigInt(Math.max(1, Math.round(Number(baseFeeRate) * TIERS[i].mult)));
+  }
+  function estFeeGrains(i: number): bigint {
+    return rateFor(i) * PREVIEW_VBYTES;
+  }
+
+  const feeRate     = rateFor(tierIdx);
+  const feeEst      = estFeeGrains(tierIdx);
 
   async function doSend() {
     const hd = getHD();
@@ -90,14 +131,14 @@ export function Send({ onBack, onSent, onPickContact, initialRecipient, initialA
   }
 
   return (
-    <div className="flex-1 flex flex-col">
-      <header className="flex items-center gap-3 px-5 pt-4 pb-3 border-b border-ink-700">
+    <div className="flex-1 flex flex-col min-h-0">
+      <header className="flex items-center gap-3 px-5 pt-4 pb-3 border-b border-ink-700 shrink-0">
         <button onClick={() => step === 'form' ? onBack() : setStep('form')} className="text-pearl-500 hover:text-pearl-200 text-sm">←</button>
         <h1 className="text-base font-semibold text-pearl-200">Send PEARL</h1>
       </header>
 
       {step === 'form' && (
-        <div className="p-5 flex flex-col gap-4 flex-1">
+        <div className="flex-1 min-h-0 overflow-y-auto p-5 flex flex-col gap-4">
           <label className="block">
             <span className="text-[11px] uppercase tracking-wider text-pearl-600 font-semibold flex justify-between items-center">
               <span>Recipient</span>
@@ -123,14 +164,15 @@ export function Send({ onBack, onSent, onPickContact, initialRecipient, initialA
             <span className="text-[11px] uppercase tracking-wider text-pearl-600 font-semibold flex justify-between items-center">
               <span>Amount</span>
               <button
-                onClick={() => c.scan && setAmount(formatPearl(c.scan.balance, 8).replace(/,/g, ''))}
+                onClick={() => c.scan && setAmount(sanitiseAmount(formatPearl(c.scan.balance, 8).replace(/,/g, '')))}
                 className="text-[11px] text-pearl-500 hover:text-pearl-200 underline decoration-pearl-700"
+                type="button"
               >MAX</button>
             </span>
             <div className="mt-1 flex">
               <input
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                onChange={(e) => setAmount(sanitiseAmount(e.target.value))}
                 placeholder="0.0"
                 inputMode="decimal"
                 className="flex-1 bg-ink-900 border border-ink-700 rounded-l-lg px-3 py-2.5 text-sm font-mono focus:outline-none focus:border-pearl-700 text-pearl-200"
@@ -146,23 +188,30 @@ export function Send({ onBack, onSent, onPickContact, initialRecipient, initialA
           <div>
             <div className="text-[11px] uppercase tracking-wider text-pearl-600 mb-1.5 font-semibold">Fee</div>
             <div className="grid grid-cols-3 gap-2">
-              {TIERS.map((t, i) => (
-                <button
-                  key={t.label}
-                  onClick={() => setTierIdx(i)}
-                  className={`rounded-lg py-2 text-xs border ${
-                    i === tierIdx
-                      ? 'border-pearl-500 text-pearl-200 bg-ink-800'
-                      : 'border-ink-700 text-pearl-500 hover:bg-ink-800'
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
+              {TIERS.map((t, i) => {
+                const est = estFeeGrains(i);
+                return (
+                  <button
+                    key={t.label}
+                    onClick={() => setTierIdx(i)}
+                    className={`rounded-lg py-2 px-2 text-xs border flex flex-col items-center gap-0.5 ${
+                      i === tierIdx
+                        ? 'border-pearl-300 dark:border-pearl-500 text-pearl-200 bg-ink-800 font-medium'
+                        : 'border-ink-700 text-pearl-500 hover:bg-ink-800'
+                    }`}
+                  >
+                    <span>{t.label}</span>
+                    <span className="font-mono text-[10px] text-pearl-500">
+                      ~{formatPearl(est, 8)}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-            {c.feeRate != null && (
-              <div className="text-xs text-pearl-600 mt-1">≈ {String(feeRate)} grains/vB</div>
-            )}
+            <div className="text-[11px] text-pearl-600 mt-1.5 flex justify-between">
+              <span>{String(feeRate)} grains/vB</span>
+              <span>Est. fee: <span className="text-pearl-400 font-mono">{formatPearl(feeEst, 8)} PEARL</span></span>
+            </div>
           </div>
 
           <button
@@ -176,22 +225,33 @@ export function Send({ onBack, onSent, onPickContact, initialRecipient, initialA
       )}
 
       {step === 'review' && (
-        <div className="p-5 flex flex-col gap-4 flex-1">
-          <div className="bg-ink-900 border border-ink-700 rounded-xl p-4 space-y-3 text-sm">
-            <Row label="To"     value={shortAddr(recipient.trim(), 14, 8)} mono />
-            <Row label="Amount" value={`${formatPearl(amountGrains, 8)} PEARL`} />
-            <Row label="Fee"    value={`${String(feeRate)} grains/vB (${TIERS[tierIdx].label})`} />
+        <div className="flex-1 flex flex-col min-h-0">
+          <div className="flex-1 min-h-0 overflow-y-auto p-5 flex flex-col gap-4">
+            <div className="bg-ink-900 border border-ink-700 rounded-xl p-4 space-y-3 text-sm">
+              {/* Full address — wraps onto multiple lines, monospace, full hex. */}
+              <div>
+                <div className="text-pearl-600 text-[11px] uppercase tracking-wider font-semibold mb-1">To</div>
+                <div className="font-mono text-xs text-pearl-200 break-all leading-relaxed">
+                  {recipient.trim()}
+                </div>
+              </div>
+              <Row label="Amount"      value={`${formatPearl(amountGrains, 8)} PEARL`} />
+              <Row label="Network fee" value={`~${formatPearl(feeEst, 8)} PEARL (${TIERS[tierIdx].label})`} />
+              <Row label="Fee rate"    value={`${String(feeRate)} grains/vB`} mono />
+            </div>
+            <p className="text-xs text-pearl-600 leading-relaxed">
+              Pearl transactions are final once mined (~3 min). Double-check the address above before signing.
+            </p>
           </div>
-          <p className="text-xs text-pearl-600 leading-relaxed">
-            Pearl transactions are final once mined (~3 min). Double-check the address.
-          </p>
-          <button
-            disabled={busy}
-            onClick={doSend}
-            className="pearl-btn rounded-xl py-3 text-sm mt-auto"
-          >
-            {busy ? 'Signing…' : 'Sign & broadcast'}
-          </button>
+          <div className="px-5 pt-2 pb-4 border-t border-ink-700 shrink-0">
+            <button
+              disabled={busy}
+              onClick={doSend}
+              className="pearl-btn rounded-xl py-3 text-sm w-full"
+            >
+              {busy ? 'Signing…' : 'Sign & broadcast'}
+            </button>
+          </div>
         </div>
       )}
 
