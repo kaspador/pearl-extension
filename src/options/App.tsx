@@ -1,19 +1,18 @@
-// Options page = full-window flow. Decides on mount:
-//   • No wallet yet   → Create flow (generate seed, verify, set password)
-//   • Wallet exists   → View seed flow (re-prompt password to reveal)
+// Options page = full-window flow. Only one purpose now: the new-wallet
+// create flow (which needs more real estate than the popup for showing the
+// 12 words). View-seed lives in the popup.
 
 import { useEffect, useState } from 'react';
 import bannerUrl from '@/assets/banner.png';
 import { hasWallet } from '@/storage/vault';
 import { Create }    from '@/screens/options/Create';
-import { ViewSeed }  from '@/screens/options/ViewSeed';
 import { ToastHost } from '@/ui/Toast';
 
 export function OptionsApp() {
-  const [route, setRoute] = useState<'loading' | 'create' | 'view'>('loading');
+  const [route, setRoute] = useState<'loading' | 'create' | 'exists'>('loading');
 
   useEffect(() => { (async () => {
-    setRoute((await hasWallet()) ? 'view' : 'create');
+    setRoute((await hasWallet()) ? 'exists' : 'create');
   })(); }, []);
 
   return (
@@ -24,18 +23,31 @@ export function OptionsApp() {
         </div>
 
         {route === 'loading' && (
-          <div className="text-xs text-pearl-600 text-center py-12">Loading…</div>
+          <div className="text-sm text-pearl-600 text-center py-12">Loading…</div>
         )}
 
         {route === 'create' && (
           <Create onDone={() => window.close()} />
         )}
 
-        {route === 'view' && (
-          <ViewSeed />
+        {route === 'exists' && (
+          <div className="max-w-md py-8">
+            <h1 className="text-2xl font-semibold text-pearl-200">Wallet already exists</h1>
+            <p className="text-sm text-pearl-500 mt-3 leading-relaxed">
+              You already have a Pearl Wallet on this browser. Click the Pearl icon
+              in the toolbar to open it. Use Settings → View 12-word phrase if
+              you need to back it up.
+            </p>
+            <button
+              onClick={() => window.close()}
+              className="pearl-btn mt-6 rounded-xl py-2.5 px-5 text-sm"
+            >
+              Close this page
+            </button>
+          </div>
         )}
 
-        <p className="text-[11px] text-pearl-700 mt-10 text-center">
+        <p className="text-xs text-pearl-600 mt-10 text-center">
           Pearl Wallet beta · v0.1.0 · community-built, non-custodial
         </p>
       </div>

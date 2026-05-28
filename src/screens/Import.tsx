@@ -90,14 +90,14 @@ export function Import({ onDone, onBack }: { onDone: () => void; onBack: () => v
   return (
     <div className="flex-1 flex flex-col">
       <header className="flex items-center gap-3 px-5 pt-4 pb-3 border-b border-ink-700">
-        <button onClick={onBack} className="text-pearl-500 hover:text-pearl-200 text-xs">←</button>
-        <h1 className="text-sm font-semibold">Import wallet</h1>
+        <button onClick={onBack} className="text-pearl-500 hover:text-pearl-200 text-sm">←</button>
+        <h1 className="text-base font-semibold text-pearl-200">Import wallet</h1>
       </header>
 
       {step === 'phrase' ? (
         <div className="p-4 flex flex-col gap-3 flex-1">
-          <p className="text-[10px] text-pearl-600 leading-relaxed">
-            Type one word per slot. Press <kbd className="px-1 rounded bg-ink-800 border border-ink-700">space</kbd> to advance.
+          <p className="text-xs text-pearl-600 leading-relaxed">
+            Type one word per slot. Press <kbd className="px-1 rounded bg-ink-800 border border-ink-700 text-pearl-400">space</kbd> to advance.
             Or paste the full phrase into any slot — we&apos;ll distribute it.
           </p>
 
@@ -106,7 +106,7 @@ export function Import({ onDone, onBack }: { onDone: () => void; onBack: () => v
               const valid = wordValid[i];
               return (
                 <label key={i} className="block relative">
-                  <span className="absolute left-2 top-1.5 text-[9px] tabular-nums text-pearl-700 pointer-events-none">
+                  <span className="absolute left-2 top-2 text-[10px] tabular-nums text-pearl-600 pointer-events-none font-medium">
                     {i + 1}.
                   </span>
                   <input
@@ -115,7 +115,6 @@ export function Import({ onDone, onBack }: { onDone: () => void; onBack: () => v
                     onChange={(e) => {
                       const v = e.target.value;
                       if (/\s/.test(v)) {
-                        // user pressed space or pasted multi-word — split into slots
                         if (!handlePaste(i, v)) setWord(i, v.trim());
                       } else {
                         setWord(i, v);
@@ -130,7 +129,7 @@ export function Import({ onDone, onBack }: { onDone: () => void; onBack: () => v
                     autoCorrect="off"
                     autoCapitalize="off"
                     autoFocus={i === 0}
-                    className={`w-full bg-ink-800 border rounded-lg pl-6 pr-2 py-1.5 text-xs font-mono focus:outline-none ${
+                    className={`w-full bg-ink-900 border rounded-lg pl-7 pr-2 py-2 text-sm font-mono text-pearl-200 focus:outline-none ${
                       valid ? 'border-ink-700 focus:border-pearl-700' : 'border-rose-500/60 focus:border-rose-500'
                     }`}
                   />
@@ -140,7 +139,7 @@ export function Import({ onDone, onBack }: { onDone: () => void; onBack: () => v
           </div>
 
           {allFilled && !phraseValid && (
-            <div className="text-[10px] text-rose-400 mt-1">
+            <div className="text-xs text-rose-700 dark:text-rose-400 mt-1">
               The phrase doesn&apos;t check out. Double-check word order and spelling.
             </div>
           )}
@@ -148,39 +147,39 @@ export function Import({ onDone, onBack }: { onDone: () => void; onBack: () => v
           <button
             disabled={!phraseValid}
             onClick={() => setStep('password')}
-            className="pearl-btn rounded-xl py-2.5 text-sm mt-auto"
+            className="pearl-btn rounded-xl py-3 text-sm mt-auto"
           >
             {phraseValid ? 'Continue' : allFilled ? 'Invalid phrase' : 'Enter all 12 words'}
           </button>
         </div>
       ) : (
         <div className="p-5 flex flex-col gap-4 flex-1">
-          <p className="text-xs text-pearl-500 leading-relaxed">
+          <p className="text-sm text-pearl-500 leading-relaxed">
             Set a password to encrypt this wallet on your device. You&apos;ll enter it each time you unlock.
           </p>
           <label className="block">
-            <span className="text-[10px] uppercase tracking-wider text-pearl-600">Password</span>
+            <span className="text-[11px] uppercase tracking-wider text-pearl-600 font-semibold">Password</span>
             <input
               type="password"
               value={password}
               onChange={(e) => setPw(e.target.value)}
-              className="mt-1 w-full bg-ink-800 border border-ink-700 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-pearl-700"
+              className="mt-1 w-full bg-ink-900 border border-ink-700 rounded-lg px-3 py-2.5 text-sm font-mono focus:outline-none focus:border-pearl-700 text-pearl-200"
               autoFocus
             />
           </label>
           <label className="block">
-            <span className="text-[10px] uppercase tracking-wider text-pearl-600">Confirm</span>
+            <span className="text-[11px] uppercase tracking-wider text-pearl-600 font-semibold">Confirm</span>
             <input
               type="password"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
-              className="mt-1 w-full bg-ink-800 border border-ink-700 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-pearl-700"
+              className="mt-1 w-full bg-ink-900 border border-ink-700 rounded-lg px-3 py-2.5 text-sm font-mono focus:outline-none focus:border-pearl-700 text-pearl-200"
             />
           </label>
           <button
             disabled={busy || password.length < 8 || password !== confirm}
             onClick={finish}
-            className="pearl-btn rounded-xl py-2.5 text-sm mt-auto"
+            className="pearl-btn rounded-xl py-3 text-sm mt-auto"
           >
             {busy ? 'Encrypting…' : 'Import wallet'}
           </button>

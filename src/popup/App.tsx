@@ -6,6 +6,7 @@ import { Dashboard }  from '@/screens/Dashboard';
 import { Send }       from '@/screens/Send';
 import { Receive }    from '@/screens/Receive';
 import { Settings }   from '@/screens/Settings';
+import { ViewSeed }   from '@/screens/ViewSeed';
 import { ToastHost, toast } from '@/ui/Toast';
 import { hasWallet, loadMeta } from '@/storage/vault';
 import { isUnlocked, restoreFromSession } from '@/state/session';
@@ -14,7 +15,7 @@ import { setBackend } from '@/api/client';
 export type Screen =
   | 'loading'
   | 'onboarding' | 'import' | 'unlock'
-  | 'dashboard' | 'send' | 'receive' | 'settings';
+  | 'dashboard' | 'send' | 'receive' | 'settings' | 'view-seed';
 
 export function App() {
   const [screen, setScreen] = useState<Screen>('loading');
@@ -83,7 +84,12 @@ export function App() {
         <Settings
           onBack={() => setScreen('dashboard')}
           onLocked={() => setScreen(/* if wallet still exists */ 'unlock')}
+          onViewSeed={() => setScreen('view-seed')}
         />
+      )}
+
+      {screen === 'view-seed' && (
+        <ViewSeed onBack={() => setScreen('settings')} />
       )}
 
       <ToastHost />
