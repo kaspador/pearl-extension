@@ -9,7 +9,7 @@ import { formatPearl, grainsToPearl } from '@/pearl/network';
 import { shortAddr, fmtUsd, timeAgo } from '@/ui/format';
 import { toast } from '@/ui/Toast';
 import {
-  SettingsIcon, LockIcon, SendIcon, ReceiveIcon, CopyIcon, QrIcon,
+  SettingsIcon, LockIcon, SendIcon, ReceiveIcon, CopyIcon, QrIcon, RefreshIcon,
 } from '@/ui/icons';
 
 export interface TxClickArgs {
@@ -29,7 +29,8 @@ interface DashboardProps {
 }
 
 export function Dashboard({ onSend, onReceive, onSettings, onLocked, onOpenTx }: DashboardProps) {
-  const [tick, setTick] = useState(0);
+  const [tick, setTick]         = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     refreshWallet().then(() => setTick(t => t + 1));
@@ -38,6 +39,13 @@ export function Dashboard({ onSend, onReceive, onSettings, onLocked, onOpenTx }:
     }, 30_000);
     return () => clearInterval(id);
   }, []);
+
+  async function manualRefresh() {
+    if (refreshing) return;
+    setRefreshing(true);
+    try { await refreshWallet(); setTick(t => t + 1); }
+    finally { setRefreshing(false); }
+  }
 
   const c = getCache();
   const pearl    = c.scan ? formatPearl(c.scan.balance, 8) : '—';
@@ -80,9 +88,20 @@ export function Dashboard({ onSend, onReceive, onSettings, onLocked, onOpenTx }:
 
       {/* Balance hero */}
       <section className="px-4 pt-2 shrink-0">
-        <div className="hero-card px-5 pt-5 pb-4">
-          <div className="text-[10px] uppercase tracking-[0.14em] text-pearl-600 font-semibold">
-            Total balance
+        <div className="hero-card px-5 pt-4 pb-4">
+          <div className="flex items-center justify-between">
+            <div className="text-[10px] uppercase tracking-[0.14em] text-pearl-600 font-semibold">
+              Total balance
+            </div>
+            <button
+              onClick={manualRefresh}
+              disabled={refreshing}
+              className="icon-badge tap w-7 h-7 hover:text-pearl-200"
+              aria-label="Refresh balance"
+              title="Refresh"
+            >
+              <RefreshIcon size={13} className={refreshing ? 'spin' : ''} />
+            </button>
           </div>
           <div className="mt-2 flex items-baseline gap-1.5">
             <span className="text-[30px] leading-none font-semibold font-mono text-pearl-200 tabular-nums tracking-tight truncate">
