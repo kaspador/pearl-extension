@@ -205,9 +205,16 @@ export function Dashboard({ onSend, onReceive, onSettings, onLocked, onOpenTx }:
                         <div className="text-sm font-semibold text-pearl-200">
                           {tx.direction === 'in' ? 'Received' : tx.direction === 'out' ? 'Sent' : 'Self'}
                         </div>
-                        <div className="text-[11px] text-pearl-600 truncate">
-                          {tx.time ? timeAgo(tx.time) : (tx.confirmed ? 'confirmed' : 'pending')}
-                        </div>
+                        {tx.confirmed ? (
+                          <div className="text-[11px] text-pearl-600 truncate">
+                            {tx.time ? timeAgo(tx.time) : 'confirmed'}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1 text-[11px] text-amber-700 dark:text-amber-400">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                            Pending
+                          </div>
+                        )}
                       </div>
                       <div className="text-right shrink-0">
                         <div className={`font-mono text-sm font-medium tabular-nums ${amtColor}`}>
