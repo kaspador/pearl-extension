@@ -16,6 +16,7 @@ import { isValidMnemonic } from '@/pearl/wallet';
 import { createWallet } from '@/storage/vault';
 import { unlock as sessionUnlock } from '@/state/session';
 import { toast } from '@/ui/Toast';
+import { ScreenHeader } from '@/ui/ScreenHeader';
 
 const WORD_COUNT = 12;
 
@@ -89,10 +90,7 @@ export function Import({ onDone, onBack }: { onDone: () => void; onBack: () => v
 
   return (
     <div className="flex-1 flex flex-col">
-      <header className="flex items-center gap-3 px-5 pt-4 pb-3 border-b border-ink-700">
-        <button onClick={onBack} className="text-pearl-500 hover:text-pearl-200 text-sm">←</button>
-        <h1 className="text-base font-semibold text-pearl-200">Import wallet</h1>
-      </header>
+      <ScreenHeader title="Import wallet" onBack={onBack} />
 
       {step === 'phrase' ? (
         <div className="p-4 flex flex-col gap-3 flex-1">

@@ -10,6 +10,7 @@ import { generateWalletMnemonic } from '@/pearl/wallet';
 import { createWallet } from '@/storage/vault';
 import { unlock as sessionUnlock } from '@/state/session';
 import { toast } from '@/ui/Toast';
+import { ChevronLeftIcon, CopyIcon } from '@/ui/icons';
 
 type Step = 'show' | 'verify' | 'password';
 
@@ -60,10 +61,12 @@ export function Create({ onBack, onDone }: Props) {
 
   function header(title: string, stepN: number, onUp: () => void) {
     return (
-      <header className="flex items-center gap-3 px-5 pt-4 pb-3 border-b border-ink-700 shrink-0">
-        <button onClick={onUp} className="text-pearl-500 hover:text-pearl-200 text-sm">←</button>
-        <h1 className="text-base font-semibold text-pearl-200 flex-1">{title}</h1>
-        <span className="text-[11px] text-pearl-600 font-mono">{stepN} / 3</span>
+      <header className="flex items-center gap-2 px-3 pt-3 pb-2.5 border-b border-ink-700 shrink-0">
+        <button onClick={onUp} className="icon-badge tap w-8 h-8 hover:text-pearl-200 shrink-0" aria-label="Back">
+          <ChevronLeftIcon size={18} />
+        </button>
+        <h1 className="text-sm font-semibold text-pearl-200 flex-1 truncate">{title}</h1>
+        <span className="text-[11px] text-pearl-600 font-mono tabular-nums">{stepN} / 3</span>
       </header>
     );
   }
@@ -91,9 +94,9 @@ export function Create({ onBack, onDone }: Props) {
               await navigator.clipboard.writeText(mnemonic);
               toast('Phrase copied — paste it into a password manager');
             }}
-            className="rounded-lg border border-ink-700 hover:bg-ink-800 py-2 text-xs text-pearl-300"
+            className="rounded-lg border border-ink-700 hover:bg-ink-800 py-2 text-xs text-pearl-300 flex items-center justify-center gap-1.5"
           >
-            ⧉ Copy 12-word phrase
+            <CopyIcon size={14} /> Copy 12-word phrase
           </button>
 
           <label className="flex items-start gap-2 mt-1 cursor-pointer">

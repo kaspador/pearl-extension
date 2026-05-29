@@ -6,6 +6,7 @@ import { buildPaymentUri } from '@/pearl/network';
 import { Qr } from '@/ui/Qr';
 import { fmtUsd } from '@/ui/format';
 import { toast } from '@/ui/Toast';
+import { ScreenHeader } from '@/ui/ScreenHeader';
 
 export function Receive({ onBack }: { onBack: () => void }) {
   const c = getCache();
@@ -34,10 +35,7 @@ export function Receive({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="flex-1 flex flex-col">
-      <header className="flex items-center gap-3 px-5 pt-4 pb-3 border-b border-ink-700">
-        <button onClick={onBack} className="text-pearl-500 hover:text-pearl-200 text-sm">←</button>
-        <h1 className="text-base font-semibold text-pearl-200">Receive PEARL</h1>
-      </header>
+      <ScreenHeader title="Receive PEARL" onBack={onBack} />
 
       <div className="p-5 flex flex-col items-center gap-4 flex-1">
         {address ? (

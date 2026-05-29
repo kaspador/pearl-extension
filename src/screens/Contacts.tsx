@@ -7,6 +7,8 @@ import { getContacts, saveContact, deleteContact, type Contact } from '@/storage
 import { isValidAddress } from '@/pearl/address';
 import { shortAddr } from '@/ui/format';
 import { toast } from '@/ui/Toast';
+import { ScreenHeader } from '@/ui/ScreenHeader';
+import { PlusIcon, CloseIcon, ChevronRightIcon } from '@/ui/icons';
 
 interface Props {
   onBack:   () => void;
@@ -52,12 +54,7 @@ export function Contacts({ onBack, onPick }: Props) {
 
   return (
     <div className="flex-1 flex flex-col">
-      <header className="flex items-center gap-3 px-5 pt-4 pb-3 border-b border-ink-700">
-        <button onClick={onBack} className="text-pearl-500 hover:text-pearl-200 text-sm">←</button>
-        <h1 className="text-base font-semibold text-pearl-200">
-          {picking ? 'Pick a contact' : 'Address book'}
-        </h1>
-      </header>
+      <ScreenHeader title={picking ? 'Pick a contact' : 'Address book'} onBack={onBack} />
 
       <div className="p-4 flex-1 overflow-y-auto flex flex-col gap-3">
         {/* Add form */}
@@ -97,9 +94,9 @@ export function Contacts({ onBack, onPick }: Props) {
           ) : (
             <button
               onClick={() => setAdding(true)}
-              className="bg-ink-900 border border-ink-700 rounded-xl py-3 text-sm text-pearl-300 hover:bg-ink-800 flex items-center justify-center gap-2"
+              className="pearl-card tap py-3 text-sm text-pearl-300 hover:bg-ink-800 flex items-center justify-center gap-1.5"
             >
-              <span className="text-lg leading-none">+</span> Add contact
+              <PlusIcon size={16} /> Add contact
             </button>
           )
         )}
@@ -124,24 +121,25 @@ export function Contacts({ onBack, onPick }: Props) {
                   <div className="text-xs font-mono text-pearl-500 truncate">{shortAddr(c.address, 14, 8)}</div>
                 </button>
                 {picking ? (
-                  <span className="text-pearl-600 text-lg shrink-0">›</span>
+                  <ChevronRightIcon size={16} className="text-pearl-600 shrink-0" />
                 ) : confirmDel === c.address ? (
                   <div className="flex gap-1 shrink-0">
                     <button
                       onClick={() => onDelete(c.address)}
-                      className="text-xs text-rose-700 dark:text-rose-400 px-2 py-1 hover:bg-rose-500/10 rounded"
+                      className="text-xs font-medium text-rose-700 dark:text-rose-400 px-2 py-1 hover:bg-rose-500/10 rounded"
                     >Delete</button>
                     <button
                       onClick={() => setDel(null)}
-                      className="text-xs text-pearl-500 px-2 py-1 hover:bg-ink-700 rounded"
-                    >×</button>
+                      className="icon-badge tap w-6 h-6 hover:text-pearl-200"
+                      aria-label="Cancel"
+                    ><CloseIcon size={12} /></button>
                   </div>
                 ) : (
                   <button
                     onClick={() => setDel(c.address)}
-                    className="text-pearl-500 hover:text-rose-700 dark:hover:text-rose-400 text-sm shrink-0 px-1"
+                    className="icon-badge tap w-7 h-7 hover:text-rose-700 dark:hover:text-rose-400 shrink-0"
                     aria-label="Delete"
-                  >✕</button>
+                  ><CloseIcon size={13} /></button>
                 )}
               </div>
             ))}

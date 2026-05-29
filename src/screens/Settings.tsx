@@ -10,6 +10,8 @@ import { lock } from '@/state/session';
 import { clearCache } from '@/state/walletState';
 import { applyTheme, loadTheme, saveTheme, type ThemeMode } from '@/state/theme';
 import { toast } from '@/ui/Toast';
+import { ScreenHeader } from '@/ui/ScreenHeader';
+import { ChevronRightIcon } from '@/ui/icons';
 
 const DEFAULT_BACKEND = 'https://pearlchain.live';
 
@@ -76,10 +78,7 @@ export function Settings({ onBack, onLocked, onViewSeed, onAddresses, onContacts
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <header className="flex items-center gap-3 px-5 pt-4 pb-3 border-b border-ink-700 shrink-0">
-        <button onClick={onBack} className="text-pearl-500 hover:text-pearl-200 text-sm">←</button>
-        <h1 className="text-base font-semibold text-pearl-200">Settings</h1>
-      </header>
+      <ScreenHeader title="Settings" onBack={onBack} />
 
       <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-5">
 
@@ -126,11 +125,7 @@ export function Settings({ onBack, onLocked, onViewSeed, onAddresses, onContacts
                 <button
                   key={opt.v}
                   onClick={() => setThemeMode(opt.v)}
-                  className={`rounded-lg py-2 text-xs border ${
-                    theme === opt.v
-                      ? 'border-pearl-300 dark:border-pearl-500 text-pearl-200 bg-ink-800 font-medium'
-                      : 'border-ink-700 text-pearl-500 hover:bg-ink-800'
-                  }`}
+                  className={`seg tap rounded-lg py-2 text-xs ${theme === opt.v ? 'seg-on' : ''}`}
                 >{opt.label}</button>
               ))}
             </div>
@@ -149,11 +144,7 @@ export function Settings({ onBack, onLocked, onViewSeed, onAddresses, onContacts
                 <button
                   key={opt.v}
                   onClick={() => setAutoLock(opt.v)}
-                  className={`rounded-lg py-2 text-xs border ${
-                    autoLockMins === opt.v
-                      ? 'border-pearl-300 dark:border-pearl-500 text-pearl-200 bg-ink-800 font-medium'
-                      : 'border-ink-700 text-pearl-500 hover:bg-ink-800'
-                  }`}
+                  className={`seg tap rounded-lg py-2 text-xs ${autoLockMins === opt.v ? 'seg-on' : ''}`}
                 >{opt.label}</button>
               ))}
             </div>
@@ -242,7 +233,7 @@ function Row({ label, hint, badge, danger, onClick }: RowProps) {
           {badge}
         </span>
       )}
-      <span className="text-pearl-500 text-lg shrink-0 leading-none font-light">›</span>
+      <ChevronRightIcon size={16} className="text-pearl-600 shrink-0" />
     </button>
   );
 }

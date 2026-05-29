@@ -10,6 +10,8 @@ import { formatPearl, grainsToPearl } from '@/pearl/network';
 import { getCache } from '@/state/walletState';
 import { shortAddr } from '@/ui/format';
 import { toast } from '@/ui/Toast';
+import { ScreenHeader } from '@/ui/ScreenHeader';
+import { ExternalIcon } from '@/ui/icons';
 
 interface Props {
   txid:      string;
@@ -70,10 +72,7 @@ export function TxDetail({ txid, net, direction, time, blockHeight, onBack }: Pr
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <header className="flex items-center gap-3 px-5 pt-4 pb-3 border-b border-ink-700 shrink-0">
-        <button onClick={onBack} className="text-pearl-500 hover:text-pearl-200 text-sm">←</button>
-        <h1 className="text-base font-semibold text-pearl-200">Transaction</h1>
-      </header>
+      <ScreenHeader title="Transaction" onBack={onBack} />
 
       {/* Scrollable content */}
       <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-3">
@@ -161,8 +160,8 @@ export function TxDetail({ txid, net, direction, time, blockHeight, onBack }: Pr
 
       {/* Pinned CTA — never scrolls off */}
       <div className="px-4 pt-2 pb-4 border-t border-ink-700 shrink-0">
-        <button onClick={openExplorer} className="pearl-btn rounded-xl py-3 text-sm w-full">
-          View on Explorer ↗
+        <button onClick={openExplorer} className="pearl-btn rounded-xl py-3 text-sm w-full flex items-center justify-center gap-1.5">
+          View on Explorer <ExternalIcon size={15} />
         </button>
       </div>
     </div>

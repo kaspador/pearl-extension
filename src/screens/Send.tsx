@@ -10,6 +10,7 @@ import { getHD } from '@/state/session';
 import { loadMeta } from '@/storage/vault';
 import { fmtUsd } from '@/ui/format';
 import { toast } from '@/ui/Toast';
+import { ScreenHeader } from '@/ui/ScreenHeader';
 
 type Step = 'form' | 'review' | 'broadcast';
 
@@ -141,10 +142,7 @@ export function Send({ onBack, onSent, onPickContact, initialRecipient, initialA
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <header className="flex items-center gap-3 px-5 pt-4 pb-3 border-b border-ink-700 shrink-0">
-        <button onClick={() => step === 'form' ? onBack() : setStep('form')} className="text-pearl-500 hover:text-pearl-200 text-sm">←</button>
-        <h1 className="text-base font-semibold text-pearl-200">Send PEARL</h1>
-      </header>
+      <ScreenHeader title="Send PEARL" onBack={() => step === 'form' ? onBack() : setStep('form')} />
 
       {step === 'form' && (
         <div className="flex-1 min-h-0 overflow-y-auto p-5 flex flex-col gap-4">
@@ -211,11 +209,7 @@ export function Send({ onBack, onSent, onPickContact, initialRecipient, initialA
                   <button
                     key={t.label}
                     onClick={() => setTierIdx(i)}
-                    className={`rounded-lg py-2 px-2 text-xs border flex flex-col items-center gap-0.5 ${
-                      i === tierIdx
-                        ? 'border-pearl-300 dark:border-pearl-500 text-pearl-200 bg-ink-800 font-medium'
-                        : 'border-ink-700 text-pearl-500 hover:bg-ink-800'
-                    }`}
+                    className={`seg tap rounded-lg py-2 px-2 text-xs flex flex-col items-center gap-0.5 ${i === tierIdx ? 'seg-on' : ''}`}
                   >
                     <span>{t.label}</span>
                     <span className="font-mono text-[10px] text-pearl-500">

@@ -8,6 +8,7 @@
 import { useState } from 'react';
 import { unlockMnemonic } from '@/storage/vault';
 import { toast } from '@/ui/Toast';
+import { ScreenHeader } from '@/ui/ScreenHeader';
 
 export function ViewSeed({ onBack }: { onBack: () => void }) {
   const [pw, setPw]         = useState('');
@@ -28,10 +29,7 @@ export function ViewSeed({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="flex-1 flex flex-col">
-      <header className="flex items-center gap-3 px-5 pt-4 pb-3 border-b border-ink-700">
-        <button onClick={onBack} className="text-pearl-500 hover:text-pearl-200 text-sm">←</button>
-        <h1 className="text-base font-semibold text-pearl-200">Recovery phrase</h1>
-      </header>
+      <ScreenHeader title="Recovery phrase" onBack={onBack} />
 
       {!words ? (
         <div className="p-5 flex flex-col gap-3 flex-1">
