@@ -97,27 +97,49 @@ async function buildFrames(srcs) {
   return frames;
 }
 
+// Parse a media file's duration (seconds) from ffmpeg's stderr banner.
+async function getDurationSec(file) {
+  try {
+    await run(ffmpegPath, ['-hide_banner', '-i', file], { maxBuffer: 1 << 24 });
+  } catch (e) {
+    const txt = String(e.stderr ?? '');
+    const m = txt.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/);
+    if (m) return (+m[1]) * 3600 + (+m[2]) * 60 + parseFloat(m[3]);
+  }
+  return 0;
+}
+
 async function buildVideo(frames) {
-  const D = 3.2;   // seconds each screen is shown
   const T = 0.7;   // transition duration
   const FPS = 30;
   const n = frames.length;
-  const total = n * D - (n - 1) * T;
 
-  // Varied transitions for visual interest (cycled across the cuts).
+  // If a narration WAV is present, size the whole video to it (lead-in so the
+  // first screen shows before the voice starts, tail so it doesn't end abruptly).
+  const narrationPath = path.join(DIR, 'narration.wav');
+  const hasVoice = existsSync(narrationPath);
+  const LEAD = 0.8, TAIL = 1.6;
+  const voiceDur = hasVoice ? await getDurationSec(narrationPath) : 0;
+
+  // total video length; derive per-screen hold D from it.
+  const total = hasVoice ? (LEAD + voiceDur + TAIL) : (n * 3.2 - (n - 1) * T);
+  const D = (total + (n - 1) * T) / n;
+
   const TRANSITIONS = ['fade', 'slideleft', 'circleopen', 'wiperight', 'smoothup', 'slideup'];
 
-  // ── Inputs: the still frames, then 4 sine tones for a generated music bed ──
+  // ── Inputs: still frames, a warm 4-note chord, then the narration WAV ──────
   const inputs = [];
-  for (const f of frames) inputs.push('-loop', '1', '-t', String(D), '-i', f);
-  // Cmaj7 pad — C3 / E3 / G3 / B3. Pleasant, neutral, royalty-free (synthesised).
-  const CHORD = [130.81, 164.81, 196.00, 246.94];
+  for (const f of frames) inputs.push('-loop', '1', '-t', D.toFixed(3), '-i', f);
+  // C major (doubled root) — C3 / E3 / G3 / C4. Consonant + warm, no wobble.
+  const CHORD = [130.81, 164.81, 196.00, 261.63];
   for (const hz of CHORD) inputs.push('-f', 'lavfi', '-t', total.toFixed(2), '-i', `sine=frequency=${hz}:sample_rate=44100`);
-  const aBase = n;   // first audio input index
+  const aBase = n;                       // first chord input index
+  if (hasVoice) inputs.push('-i', narrationPath);
+  const voiceIdx = aBase + CHORD.length; // narration input index
 
-  // ── Video: per-frame slow Ken Burns push-in, then chained xfades ──────────
+  // ── Video: gentle Ken Burns push-in + chained varied transitions ──────────
   const vParts = frames.map((_, i) =>
-    `[${i}:v]fps=${FPS},zoompan=z='min(zoom+0.0010,1.10)':d=1:` +
+    `[${i}:v]fps=${FPS},zoompan=z='min(zoom+0.0007,1.08)':d=1:` +
     `x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1920x1080,setsar=1[c${i}]`
   );
   let prev = '[c0]';
@@ -130,15 +152,28 @@ async function buildVideo(frames) {
   }
   vParts.push(`[vx]format=yuv420p,fade=t=in:st=0:d=0.5,fade=t=out:st=${(total - 0.6).toFixed(3)}:d=0.6[v]`);
 
-  // ── Audio: mix the chord, warm it, add space + slow swell, fade in/out ────
+  // ── Audio ──────────────────────────────────────────────────────────────────
+  // Soft sustained pad: mix the chord, keep it VERY quiet, low-pass for warmth,
+  // gentle fades. No tremolo, no echo (those made it sound eerie).
   const aMixIn = CHORD.map((_, k) => `[${aBase + k}:a]`).join('');
-  const aFilter =
+  const padVol = hasVoice ? 0.05 : 0.12;   // quieter still when under narration
+  const padFilter =
     `${aMixIn}amix=inputs=${CHORD.length}:normalize=0,` +
-    `volume=0.18,` +                                    // tame the summed tones
-    `tremolo=f=0.18:d=0.6,` +                           // slow gentle swell
-    `lowpass=f=1500,` +                                 // soften the highs
-    `aecho=0.8:0.85:600:0.3,` +                         // light ambience/space
-    `afade=t=in:d=1.2,afade=t=out:st=${(total - 1.6).toFixed(3)}:d=1.6[a]`;
+    `volume=${padVol},lowpass=f=1100,` +
+    `afade=t=in:d=1.5,afade=t=out:st=${(total - 1.8).toFixed(3)}:d=1.8[pad]`;
+
+  let aFilter, aOut;
+  if (hasVoice) {
+    // Voice delayed by the lead-in, then mixed over the quiet pad.
+    aFilter =
+      `${padFilter};` +
+      `[${voiceIdx}:a]adelay=${Math.round(LEAD * 1000)}|${Math.round(LEAD * 1000)},volume=1.4[vo];` +
+      `[vo][pad]amix=inputs=2:normalize=0:duration=longest[a]`;
+    aOut = '[a]';
+  } else {
+    aFilter = padFilter.replace('[pad]', '[a]');
+    aOut = '[a]';
+  }
 
   const filter = [...vParts, aFilter].join(';');
 
@@ -146,15 +181,16 @@ async function buildVideo(frames) {
   const args = [
     '-y', ...inputs,
     '-filter_complex', filter,
-    '-map', '[v]', '-map', '[a]',
+    '-map', '[v]', '-map', aOut,
     '-c:v', 'libx264', '-preset', 'medium', '-crf', '20',
     '-c:a', 'aac', '-b:a', '160k',
     '-pix_fmt', 'yuv420p', '-movflags', '+faststart',
-    '-shortest',
+    '-t', total.toFixed(3),
     out,
   ];
   await run(ffmpegPath, args, { maxBuffer: 1 << 26 });
-  console.log(`\n  video  pearl-wallet-demo.mp4  1920x1080  ~${total.toFixed(1)}s  (Ken Burns + transitions + ambient pad)`);
+  console.log(`\n  video  pearl-wallet-demo.mp4  1920x1080  ~${total.toFixed(1)}s` +
+    `${hasVoice ? `  (narration ${voiceDur.toFixed(1)}s + soft pad)` : '  (soft pad)'}`);
   return out;
 }
 
