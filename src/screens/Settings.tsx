@@ -18,12 +18,13 @@ const DEFAULT_BACKEND = 'https://pearlchain.live';
 interface SettingsProps {
   onBack:      () => void;
   onLocked:    () => void;
+  onDeleted:   () => void;   // wallet wiped → route to onboarding, not unlock
   onViewSeed:  () => void;
   onAddresses: () => void;
   onContacts:  () => void;
 }
 
-export function Settings({ onBack, onLocked, onViewSeed, onAddresses, onContacts }: SettingsProps) {
+export function Settings({ onBack, onLocked, onDeleted, onViewSeed, onAddresses, onContacts }: SettingsProps) {
   const [meta, setMeta]       = useState<WalletMeta | null>(null);
   const [url,  setUrl]        = useState('');
   const [busy, setBusy]       = useState(false);
@@ -66,7 +67,7 @@ export function Settings({ onBack, onLocked, onViewSeed, onAddresses, onContacts
     await clearWallet();
     clearCache();
     await lock();
-    onLocked();
+    onDeleted();   // no wallet remains → onboarding, not the unlock prompt
   }
 
   const currentMode: BackendMode = meta?.explorerMode ?? 'pearlchain';

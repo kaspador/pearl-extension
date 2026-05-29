@@ -104,6 +104,7 @@ export function App() {
         <Settings
           onBack={() => setScreen('dashboard')}
           onLocked={() => setScreen('unlock')}
+          onDeleted={() => setScreen('onboarding')}
           onViewSeed={() => setScreen('view-seed')}
           onAddresses={() => setScreen('addresses')}
           onContacts={() => setScreen('contacts')}
