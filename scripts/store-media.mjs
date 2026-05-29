@@ -98,37 +98,63 @@ async function buildFrames(srcs) {
 }
 
 async function buildVideo(frames) {
-  const D = 3.0;   // seconds each screen is fully shown (incl. transition)
-  const T = 0.6;   // crossfade duration
+  const D = 3.2;   // seconds each screen is shown
+  const T = 0.7;   // transition duration
+  const FPS = 30;
   const n = frames.length;
+  const total = n * D - (n - 1) * T;
 
+  // Varied transitions for visual interest (cycled across the cuts).
+  const TRANSITIONS = ['fade', 'slideleft', 'circleopen', 'wiperight', 'smoothup', 'slideup'];
+
+  // ── Inputs: the still frames, then 4 sine tones for a generated music bed ──
   const inputs = [];
   for (const f of frames) inputs.push('-loop', '1', '-t', String(D), '-i', f);
+  // Cmaj7 pad — C3 / E3 / G3 / B3. Pleasant, neutral, royalty-free (synthesised).
+  const CHORD = [130.81, 164.81, 196.00, 246.94];
+  for (const hz of CHORD) inputs.push('-f', 'lavfi', '-t', total.toFixed(2), '-i', `sine=frequency=${hz}:sample_rate=44100`);
+  const aBase = n;   // first audio input index
 
-  // Chain xfades: [0][1]→[v1], [v1][2]→[v2], … last → [vx]
-  const parts = [];
-  let prev = '[0]';
+  // ── Video: per-frame slow Ken Burns push-in, then chained xfades ──────────
+  const vParts = frames.map((_, i) =>
+    `[${i}:v]fps=${FPS},zoompan=z='min(zoom+0.0010,1.10)':d=1:` +
+    `x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1920x1080,setsar=1[c${i}]`
+  );
+  let prev = '[c0]';
   for (let i = 1; i < n; i++) {
     const offset = (i * (D - T)).toFixed(3);
-    const out = i === n - 1 ? '[vx]' : `[v${i}]`;
-    parts.push(`${prev}[${i}]xfade=transition=fade:duration=${T}:offset=${offset}${out}`);
+    const tr = TRANSITIONS[(i - 1) % TRANSITIONS.length];
+    const out = i === n - 1 ? '[vx]' : `[vv${i}]`;
+    vParts.push(`${prev}[c${i}]xfade=transition=${tr}:duration=${T}:offset=${offset}${out}`);
     prev = out;
   }
-  const total = n * D - (n - 1) * T;
-  const filter = parts.join(';') +
-    `;[vx]fps=30,format=yuv420p,fade=t=in:st=0:d=0.4,fade=t=out:st=${(total - 0.5).toFixed(3)}:d=0.5[v]`;
+  vParts.push(`[vx]format=yuv420p,fade=t=in:st=0:d=0.5,fade=t=out:st=${(total - 0.6).toFixed(3)}:d=0.6[v]`);
+
+  // ── Audio: mix the chord, warm it, add space + slow swell, fade in/out ────
+  const aMixIn = CHORD.map((_, k) => `[${aBase + k}:a]`).join('');
+  const aFilter =
+    `${aMixIn}amix=inputs=${CHORD.length}:normalize=0,` +
+    `volume=0.18,` +                                    // tame the summed tones
+    `tremolo=f=0.18:d=0.6,` +                           // slow gentle swell
+    `lowpass=f=1500,` +                                 // soften the highs
+    `aecho=0.8:0.85:600:0.3,` +                         // light ambience/space
+    `afade=t=in:d=1.2,afade=t=out:st=${(total - 1.6).toFixed(3)}:d=1.6[a]`;
+
+  const filter = [...vParts, aFilter].join(';');
 
   const out = path.join(DIR, 'pearl-wallet-demo.mp4');
   const args = [
     '-y', ...inputs,
     '-filter_complex', filter,
-    '-map', '[v]',
+    '-map', '[v]', '-map', '[a]',
     '-c:v', 'libx264', '-preset', 'medium', '-crf', '20',
+    '-c:a', 'aac', '-b:a', '160k',
     '-pix_fmt', 'yuv420p', '-movflags', '+faststart',
+    '-shortest',
     out,
   ];
   await run(ffmpegPath, args, { maxBuffer: 1 << 26 });
-  console.log(`\n  video  pearl-wallet-demo.mp4  1920x1080  ~${total.toFixed(1)}s`);
+  console.log(`\n  video  pearl-wallet-demo.mp4  1920x1080  ~${total.toFixed(1)}s  (Ken Burns + transitions + ambient pad)`);
   return out;
 }
 
