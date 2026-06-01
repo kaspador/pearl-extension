@@ -7,7 +7,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:firefox": "npm run build && node scripts/build-firefox.mjs",
     "package": "npm run build && cd dist && zip -r ../pearl-extension.zip .",
+    "package:firefox": "npm run build:firefox && cd dist-firefox && zip -r ../pearl-wallet-firefox.zip .",
     "icons": "node scripts/rasterize-icons.mjs",
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit"
