@@ -33,17 +33,20 @@ if (m.background?.service_worker) {
   };
 }
 
-// Stable add-on id + minimum version (MV3 module background needs Firefox 121+).
-// data_collection_permissions is required by AMO: ["none"] = the wallet collects
-// no user data (keys/seed/password never leave the device; only public addresses
-// and signed transactions are sent to read/broadcast on-chain).
+// Stable add-on id + minimum versions. data_collection_permissions is required
+// by AMO (["none"] = the wallet collects no user data — keys/seed/password never
+// leave the device; only public addresses and signed transactions are sent to
+// read/broadcast on-chain). That manifest key only exists in Firefox 140+ /
+// Firefox-for-Android 142+, so we set those as the minimums (MV3 module
+// background needs 121+, comfortably covered).
 m.browser_specific_settings = {
   ...(m.browser_specific_settings ?? {}),
   gecko: {
     id: GECKO_ID,
-    strict_min_version: '121.0',
+    strict_min_version: '140.0',
     data_collection_permissions: { required: ['none'] },
   },
+  gecko_android: { strict_min_version: '142.0' },
 };
 
 writeFileSync(mfPath, `${JSON.stringify(m, null, 2)}\n`);
