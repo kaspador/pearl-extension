@@ -1,6 +1,6 @@
 {
   "name": "pearl-extension",
-  "version": "0.1.1",
+  "version": "1.0.0",
   "private": true,
   "description": "Pearl Wallet — community-built Chrome extension for the Pearl blockchain (Proof-of-Useful-Work).",
   "type": "module",
