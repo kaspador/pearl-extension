@@ -4,7 +4,7 @@ import * as btc from '@scure/btc-signer';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { type HDKey } from '@scure/bip32';
 import { decodeBech32m } from './address';
-import { getPrivateKey, toXOnlyPubkey } from './wallet';
+import { deriveAddress, getPrivateKey, toXOnlyPubkey } from './wallet';
 import { type PearlNetwork, DUST_LIMIT } from './network';
 import type { ScannedUtxo } from './hdwallet';
 import { bytesToHex } from './bytes';
@@ -51,13 +51,42 @@ function selectUtxos(
   return { picked, total, estFee: estVbytes(picked.length, 2) * feeRate };
 }
 
+const ADDR_SEARCH_MAX = 500;
+
+// Return the private key that actually OWNS this UTXO's address. We can't blindly
+// trust u.chain/u.index — if the send flow tagged a UTXO with the wrong path, the
+// derived key won't match the Taproot output and btc-signer emits an EMPTY
+// witness (node rejects: "witness program passed empty witness"). So we verify
+// the recorded path derives this exact address, and if not, find the real path
+// by matching the address across both chains.
 function keyForUtxo(hd: HDKey, network: PearlNetwork, u: ScannedUtxo): Uint8Array {
-  return getPrivateKey(hd, u.chain, u.index, network);
+  if (deriveAddress(hd, u.chain, u.index, network).address === u.address) {
+    return getPrivateKey(hd, u.chain, u.index, network);
+  }
+  for (const chain of [0, 1] as const) {
+    for (let i = 0; i < ADDR_SEARCH_MAX; i++) {
+      if (deriveAddress(hd, chain, i, network).address === u.address) {
+        return getPrivateKey(hd, chain, i, network);
+      }
+    }
+  }
+  throw new Error(`No signing key found for UTXO address ${u.address} — cannot sign.`);
 }
 
 function signWithAll(tx: btc.Transaction, keys: Uint8Array[]) {
   for (const k of keys) {
     try { tx.sign(k); } catch { /* key matches no input — skip */ }
+  }
+}
+
+// Safety net: never broadcast a transaction with an unsigned (empty-witness)
+// input. Catches any residual key/path mismatch before it hits the node.
+function assertAllSigned(tx: btc.Transaction) {
+  for (let i = 0; i < tx.inputsLength; i++) {
+    const w = tx.getInput(i).finalScriptWitness;
+    if (!w || w.length === 0) {
+      throw new Error(`Could not sign input #${i} — refusing to broadcast an unsigned transaction.`);
+    }
   }
 }
 
@@ -102,6 +131,7 @@ export function buildAndSignTx(args: SendArgs): BuiltTx {
 
   signWithAll(tx, [...keyByHex.values()]);
   tx.finalize();
+  assertAllSigned(tx);
 
   return {
     hex:          bytesToHex(tx.extract()),
@@ -154,6 +184,7 @@ export function buildCompoundTx(args: CompoundArgs): BuiltTx {
 
   signWithAll(tx, [...keyByHex.values()]);
   tx.finalize();
+  assertAllSigned(tx);
 
   return {
     hex:          bytesToHex(tx.extract()),
