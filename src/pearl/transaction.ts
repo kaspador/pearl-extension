@@ -73,6 +73,23 @@ function keyForUtxo(hd: HDKey, network: PearlNetwork, u: ScannedUtxo): Uint8Arra
   throw new Error(`No signing key found for UTXO address ${u.address} — cannot sign.`);
 }
 
+interface PreparedInput { u: ScannedUtxo; priv: Uint8Array; xOnly: Uint8Array; script: Uint8Array; }
+
+// Pre-sign verification (hardening). BEFORE building/signing anything, prove every
+// selected input is (a) a well-formed Pearl Taproot address and (b) actually OWNED
+// by this wallet (its address re-derives from our seed). The locking script is
+// ALWAYS re-derived locally from that address — we never trust a script that came
+// from the backend. Fail fast with a clear error rather than spend a coin we don't
+// control or hand the node an unsignable transaction.
+function prepareInputs(hd: HDKey, network: PearlNetwork, utxos: ScannedUtxo[]): PreparedInput[] {
+  return utxos.map((u) => {
+    const script = addressToTaprootScript(u.address);   // validates the address
+    const priv   = keyForUtxo(hd, network, u);          // asserts we own it (throws if not)
+    const xOnly  = toXOnlyPubkey(secp256k1.getPublicKey(priv, true));
+    return { u, priv, xOnly, script };
+  });
+}
+
 function signWithAll(tx: btc.Transaction, keys: Uint8Array[]) {
   for (const k of keys) {
     try { tx.sign(k); } catch { /* key matches no input — skip */ }
@@ -106,16 +123,15 @@ export function buildAndSignTx(args: SendArgs): BuiltTx {
   if (total < args.amount + estFee) {
     throw new Error(`Insufficient funds: have ${total} grains, need ${args.amount + estFee} (incl. fee).`);
   }
+  const prepared = prepareInputs(args.hd, args.network, picked);   // verify ALL before building
   const tx = new btc.Transaction({ allowUnknownOutputs: false });
   const keyByHex = new Map<string, Uint8Array>();
-  for (const u of picked) {
-    const priv  = keyForUtxo(args.hd, args.network, u);
-    const xOnly = toXOnlyPubkey(secp256k1.getPublicKey(priv, true));
-    keyByHex.set(bytesToHex(priv), priv);
+  for (const p of prepared) {
+    keyByHex.set(bytesToHex(p.priv), p.priv);
     tx.addInput({
-      txid: u.txid, index: u.vout,
-      witnessUtxo: { script: addressToTaprootScript(u.address), amount: u.value },
-      tapInternalKey: xOnly,
+      txid: p.u.txid, index: p.u.vout,
+      witnessUtxo: { script: p.script, amount: p.u.value },
+      tapInternalKey: p.xOnly,
     });
   }
   tx.addOutputAddress(args.recipient, args.amount, NET);
@@ -166,17 +182,16 @@ export function buildCompoundTx(args: CompoundArgs): BuiltTx {
     throw new Error('Balance too small to cover the consolidation fee.');
   }
 
+  const prepared = prepareInputs(args.hd, args.network, args.utxos);   // verify ALL before building
   const tx = new btc.Transaction({ allowUnknownOutputs: false });
   const keyByHex = new Map<string, Uint8Array>();
 
-  for (const u of args.utxos) {
-    const priv  = keyForUtxo(args.hd, args.network, u);
-    const xOnly = toXOnlyPubkey(secp256k1.getPublicKey(priv, true));
-    keyByHex.set(bytesToHex(priv), priv);
+  for (const p of prepared) {
+    keyByHex.set(bytesToHex(p.priv), p.priv);
     tx.addInput({
-      txid: u.txid, index: u.vout,
-      witnessUtxo: { script: addressToTaprootScript(u.address), amount: u.value },
-      tapInternalKey: xOnly,
+      txid: p.u.txid, index: p.u.vout,
+      witnessUtxo: { script: p.script, amount: p.u.value },
+      tapInternalKey: p.xOnly,
     });
   }
 
