@@ -6,7 +6,7 @@ import { parsePaymentUri, formatPearl, pearlToGrains, grainsToPearl } from '@/pe
 import { buildAndSignTx } from '@/pearl/transaction';
 import { broadcastTx } from '@/api/client';
 import { getCache, refreshWallet } from '@/state/walletState';
-import { getHD } from '@/state/session';
+import { buildCurrentSigner } from '@/state/accounts';
 import { loadMeta } from '@/storage/vault';
 import { fmtUsd } from '@/ui/format';
 import { toast } from '@/ui/Toast';
@@ -110,14 +110,14 @@ export function Send({ onBack, onSent, onPickContact, initialRecipient, initialA
   const feeUsd     = usdOf(feeEst);
 
   async function doSend() {
-    const hd = getHD();
-    if (!hd || !c.scan) return;
+    if (!c.scan) return;
     setBusy(true);
     try {
       const meta = await loadMeta();
       const network = meta?.network ?? 'mainnet';
+      const signer = await buildCurrentSigner(network);
       const tx = buildAndSignTx({
-        hd, network,
+        signer, network,
         recipient: recipient.trim(),
         amount: amountGrains,
         utxos: c.scan.utxos,

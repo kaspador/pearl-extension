@@ -14,7 +14,7 @@
 //   POST /api/explorer/broadcast          { hex: '…' }
 
 import type {
-  AddressData, AddressTx, ExplorerStats, PriceData, ScanResult, TxDetail, UtxoDto,
+  AddressData, AddressTx, ExplorerStats, PriceData, PricePoint, ScanResult, TxDetail, UtxoDto,
 } from './types';
 
 async function timedFetch(url: string, opts: RequestInit = {}, ms = 12_000): Promise<Response> {
@@ -88,6 +88,15 @@ export async function getPrice(baseUrl: string): Promise<PriceData | null> {
     const d = await r.json() as PriceData;
     return d;
   } catch { return null; }
+}
+
+export async function getPriceHistory(baseUrl: string, range = '7d'): Promise<PricePoint[]> {
+  try {
+    const r = await timedFetch(`${baseUrl}/api/explorer/price-history?range=${encodeURIComponent(range)}`);
+    if (!r.ok) return [];
+    const d = await r.json() as { points?: PricePoint[] };
+    return d.points ?? [];
+  } catch { return []; }
 }
 
 export async function getTx(baseUrl: string, txid: string): Promise<TxDetail | null> {

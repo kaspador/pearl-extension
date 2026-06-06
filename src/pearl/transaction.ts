@@ -4,7 +4,7 @@ import * as btc from '@scure/btc-signer';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { type HDKey } from '@scure/bip32';
 import { decodeBech32m } from './address';
-import { deriveAddress, getPrivateKey, toXOnlyPubkey } from './wallet';
+import { deriveAddress, getPrivateKey, toXOnlyPubkey, privateKeyToAddress, defaultDerivation, type Derivation } from './wallet';
 import { type PearlNetwork, DUST_LIMIT } from './network';
 import type { ScannedUtxo } from './hdwallet';
 import { bytesToHex } from './bytes';
@@ -53,38 +53,63 @@ function selectUtxos(
 
 const ADDR_SEARCH_MAX = 500;
 
-// Return the private key that actually OWNS this UTXO's address. We can't blindly
-// trust u.chain/u.index — if the send flow tagged a UTXO with the wrong path, the
-// derived key won't match the Taproot output and btc-signer emits an EMPTY
-// witness (node rejects: "witness program passed empty witness"). So we verify
-// the recorded path derives this exact address, and if not, find the real path
-// by matching the address across both chains.
-function keyForUtxo(hd: HDKey, network: PearlNetwork, u: ScannedUtxo): Uint8Array {
-  if (deriveAddress(hd, u.chain, u.index, network).address === u.address) {
-    return getPrivateKey(hd, u.chain, u.index, network);
-  }
-  for (const chain of [0, 1] as const) {
-    for (let i = 0; i < ADDR_SEARCH_MAX; i++) {
-      if (deriveAddress(hd, chain, i, network).address === u.address) {
-        return getPrivateKey(hd, chain, i, network);
+// A signer resolves the private key that OWNS a given UTXO. Two implementations:
+// an HD account (derives within one BIP-86 sub-tree) and an imported single key.
+// In both cases the address is verified to belong to the account before a key is
+// returned — never sign for a coin we can't prove we control.
+export interface AccountSigner {
+  keyForUtxo(u: { address: string; chain: 0 | 1; index: number }): Uint8Array;
+}
+
+// HD account signer. We can't blindly trust u.chain/u.index — if the send flow
+// tagged a UTXO with the wrong path the derived key won't match the Taproot
+// output and btc-signer emits an EMPTY witness (node rejects: "witness program
+// passed empty witness"). So we verify the recorded path derives this exact
+// address, and if not, find the real path by matching across both chains.
+export function hdSigner(hd: HDKey, network: PearlNetwork, deriv?: Derivation): AccountSigner {
+  const d = deriv ?? defaultDerivation(network);
+  return {
+    keyForUtxo(u) {
+      if (deriveAddress(hd, u.chain, u.index, network, d).address === u.address) {
+        return getPrivateKey(hd, u.chain, u.index, network, d);
       }
-    }
-  }
-  throw new Error(`No signing key found for UTXO address ${u.address} — cannot sign.`);
+      for (const chain of [0, 1] as const) {
+        for (let i = 0; i < ADDR_SEARCH_MAX; i++) {
+          if (deriveAddress(hd, chain, i, network, d).address === u.address) {
+            return getPrivateKey(hd, chain, i, network, d);
+          }
+        }
+      }
+      throw new Error(`No signing key found for UTXO address ${u.address} — cannot sign.`);
+    },
+  };
+}
+
+// Imported single-key signer. Controls exactly one address.
+export function importedSigner(priv: Uint8Array, network: PearlNetwork): AccountSigner {
+  const owned = privateKeyToAddress(priv, network);
+  return {
+    keyForUtxo(u) {
+      if (u.address !== owned) {
+        throw new Error(`Imported account does not control ${u.address} — cannot sign.`);
+      }
+      return priv;
+    },
+  };
 }
 
 interface PreparedInput { u: ScannedUtxo; priv: Uint8Array; xOnly: Uint8Array; script: Uint8Array; }
 
 // Pre-sign verification (hardening). BEFORE building/signing anything, prove every
 // selected input is (a) a well-formed Pearl Taproot address and (b) actually OWNED
-// by this wallet (its address re-derives from our seed). The locking script is
-// ALWAYS re-derived locally from that address — we never trust a script that came
-// from the backend. Fail fast with a clear error rather than spend a coin we don't
+// by this account (the signer returns a key only after verifying ownership). The
+// locking script is ALWAYS re-derived locally from that address — we never trust a
+// script that came from the backend. Fail fast rather than spend a coin we don't
 // control or hand the node an unsignable transaction.
-function prepareInputs(hd: HDKey, network: PearlNetwork, utxos: ScannedUtxo[]): PreparedInput[] {
+function prepareInputs(signer: AccountSigner, utxos: ScannedUtxo[]): PreparedInput[] {
   return utxos.map((u) => {
     const script = addressToTaprootScript(u.address);   // validates the address
-    const priv   = keyForUtxo(hd, network, u);          // asserts we own it (throws if not)
+    const priv   = signer.keyForUtxo(u);                 // asserts we own it (throws if not)
     const xOnly  = toXOnlyPubkey(secp256k1.getPublicKey(priv, true));
     return { u, priv, xOnly, script };
   });
@@ -108,7 +133,7 @@ function assertAllSigned(tx: btc.Transaction) {
 }
 
 export interface SendArgs {
-  hd:           HDKey;
+  signer:       AccountSigner;
   network:      PearlNetwork;
   recipient:    string;
   amount:       bigint;
@@ -123,7 +148,7 @@ export function buildAndSignTx(args: SendArgs): BuiltTx {
   if (total < args.amount + estFee) {
     throw new Error(`Insufficient funds: have ${total} grains, need ${args.amount + estFee} (incl. fee).`);
   }
-  const prepared = prepareInputs(args.hd, args.network, picked);   // verify ALL before building
+  const prepared = prepareInputs(args.signer, picked);   // verify ALL before building
   const tx = new btc.Transaction({ allowUnknownOutputs: false });
   const keyByHex = new Map<string, Uint8Array>();
   for (const p of prepared) {
@@ -159,7 +184,7 @@ export function buildAndSignTx(args: SendArgs): BuiltTx {
 }
 
 export interface CompoundArgs {
-  hd:          HDKey;
+  signer:      AccountSigner;
   network:     PearlNetwork;
   utxos:       ScannedUtxo[];   // everything spendable
   destination: string;          // where to consolidate (typically receive #0)
@@ -182,7 +207,7 @@ export function buildCompoundTx(args: CompoundArgs): BuiltTx {
     throw new Error('Balance too small to cover the consolidation fee.');
   }
 
-  const prepared = prepareInputs(args.hd, args.network, args.utxos);   // verify ALL before building
+  const prepared = prepareInputs(args.signer, args.utxos);   // verify ALL before building
   const tx = new btc.Transaction({ allowUnknownOutputs: false });
   const keyByHex = new Map<string, Uint8Array>();
 

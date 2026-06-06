@@ -15,8 +15,8 @@ import { mnemonicToHDKey } from '@/pearl/wallet';
 const SESSION_KEY = 'pearl.session.mnemonic';
 const AUTOLOCK_ALARM = 'pearl.autolock';
 
-interface SessionState { hd: HDKey | null; unlockedAt: number }
-const state: SessionState = { hd: null, unlockedAt: 0 };
+interface SessionState { hd: HDKey | null; mnemonic: string | null; unlockedAt: number }
+const state: SessionState = { hd: null, mnemonic: null, unlockedAt: 0 };
 
 function sessionGet(): Promise<string | null> {
   return new Promise(resolve => {
@@ -48,6 +48,7 @@ async function scheduleAutoLock(): Promise<void> {
 
 export async function unlock(mnemonic: string): Promise<void> {
   state.hd = await mnemonicToHDKey(mnemonic);
+  state.mnemonic = mnemonic;
   state.unlockedAt = Date.now();
   await sessionSet(mnemonic);
   await scheduleAutoLock();
@@ -55,6 +56,7 @@ export async function unlock(mnemonic: string): Promise<void> {
 
 export async function lock(): Promise<void> {
   state.hd = null;
+  state.mnemonic = null;
   state.unlockedAt = 0;
   await sessionClear();
   await chrome.alarms.clear(AUTOLOCK_ALARM);
@@ -68,6 +70,7 @@ export async function restoreFromSession(): Promise<boolean> {
   if (!m) return false;
   try {
     state.hd = await mnemonicToHDKey(m);
+    state.mnemonic = m;
     state.unlockedAt = Date.now();
     return true;
   } catch {
@@ -78,4 +81,5 @@ export async function restoreFromSession(): Promise<boolean> {
 
 export function isUnlocked(): boolean { return state.hd != null; }
 export function getHD(): HDKey | null { return state.hd; }
+export function getMnemonic(): string | null { return state.mnemonic; }
 export function getUnlockedAt(): number { return state.unlockedAt; }

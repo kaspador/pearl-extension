@@ -4,8 +4,7 @@
 
 import { useEffect, useState } from 'react';
 import { getCache, refreshWallet } from '@/state/walletState';
-import { getHD } from '@/state/session';
-import { deriveAddress } from '@/pearl/wallet';
+import { buildCurrentSigner } from '@/state/accounts';
 import { formatPearl, grainsToPearl } from '@/pearl/network';
 import { buildCompoundTx } from '@/pearl/transaction';
 import { broadcastTx } from '@/api/client';
@@ -50,15 +49,14 @@ export function Addresses({ onBack }: { onBack: () => void }) {
 
   async function doCompound() {
     if (!scan) return;
-    const hd = getHD();
-    if (!hd) return;
     setBusy(true);
     try {
       const meta    = await loadMeta();
       const network = meta?.network ?? 'mainnet';
-      const dest    = deriveAddress(hd, 0, 0, network).address;
+      const signer  = await buildCurrentSigner(network);
+      const dest    = scan.receiveAddress;   // consolidate into the current account's receive address
       const feeRate = BigInt(c.feeRate ?? 1);
-      const built   = buildCompoundTx({ hd, network, utxos: scan.utxos, destination: dest, feeRate });
+      const built   = buildCompoundTx({ signer, network, utxos: scan.utxos, destination: dest, feeRate });
       const res     = await broadcastTx(built.hex);
       if (res.error || !res.txid) {
         toast(res.error ?? 'Compound failed');

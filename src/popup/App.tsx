@@ -4,13 +4,16 @@ import { Create }     from '@/screens/Create';
 import { Import }     from '@/screens/Import';
 import { Unlock }     from '@/screens/Unlock';
 import { Dashboard, type TxClickArgs } from '@/screens/Dashboard';
+import { Activity }   from '@/screens/Activity';
 import { Send }       from '@/screens/Send';
 import { Receive }    from '@/screens/Receive';
 import { Settings }   from '@/screens/Settings';
+import { AddAccount } from '@/screens/AddAccount';
 import { ViewSeed }   from '@/screens/ViewSeed';
 import { TxDetail }   from '@/screens/TxDetail';
 import { Addresses }  from '@/screens/Addresses';
 import { Contacts }   from '@/screens/Contacts';
+import { TabBar, type Tab } from '@/ui/TabBar';
 import { ToastHost, toast } from '@/ui/Toast';
 import { hasWallet, loadMeta } from '@/storage/vault';
 import { isUnlocked, restoreFromSession } from '@/state/session';
@@ -19,15 +22,15 @@ import { setBackend } from '@/api/client';
 export type Screen =
   | 'loading'
   | 'onboarding' | 'create' | 'import' | 'unlock'
-  | 'dashboard' | 'send' | 'receive' | 'settings'
+  | 'dashboard' | 'activity' | 'send' | 'receive' | 'settings' | 'add-account'
   | 'view-seed' | 'tx-detail' | 'addresses' | 'contacts' | 'pick-contact';
+
+// Screens that participate in the bottom tab bar.
+const TAB_SCREENS: Screen[] = ['dashboard', 'activity', 'settings'];
 
 export function App() {
   const [screen, setScreen] = useState<Screen>('loading');
-  // Sticky state for the tx detail screen.
   const [txArgs, setTxArgs] = useState<TxClickArgs | null>(null);
-  // Sticky state passed back into Send when returning from contact picker
-  // or from re-entering Send mid-edit.
   const [sendPrefill, setSendPrefill] = useState<{ recipient?: string; amount?: string }>({});
 
   useEffect(() => {
@@ -45,6 +48,9 @@ export function App() {
     return () => { port.disconnect(); };
   }, []);
 
+  const showTabBar = TAB_SCREENS.includes(screen);
+  const activeTab: Tab = screen === 'activity' ? 'activity' : screen === 'settings' ? 'settings' : 'dashboard';
+
   return (
     <div className="popup-shell flex flex-col">
       {screen === 'loading' && (
@@ -52,24 +58,15 @@ export function App() {
       )}
 
       {screen === 'onboarding' && (
-        <Onboarding
-          onCreate={() => setScreen('create')}
-          onImport={() => setScreen('import')}
-        />
+        <Onboarding onCreate={() => setScreen('create')} onImport={() => setScreen('import')} />
       )}
 
       {screen === 'create' && (
-        <Create
-          onBack={() => setScreen('onboarding')}
-          onDone={() => setScreen('dashboard')}
-        />
+        <Create onBack={() => setScreen('onboarding')} onDone={() => setScreen('dashboard')} />
       )}
 
       {screen === 'import' && (
-        <Import
-          onBack={() => setScreen('onboarding')}
-          onDone={() => setScreen('dashboard')}
-        />
+        <Import onBack={() => setScreen('onboarding')} onDone={() => setScreen('dashboard')} />
       )}
 
       {screen === 'unlock' && (
@@ -80,10 +77,17 @@ export function App() {
         <Dashboard
           onSend={() => { setSendPrefill({}); setScreen('send'); }}
           onReceive={() => setScreen('receive')}
-          onSettings={() => setScreen('settings')}
           onLocked={() => setScreen('unlock')}
-          onOpenTx={(args) => { setTxArgs(args); setScreen('tx-detail'); }}
+          onAddAccount={() => setScreen('add-account')}
         />
+      )}
+
+      {screen === 'activity' && (
+        <Activity onOpenTx={(args) => { setTxArgs(args); setScreen('tx-detail'); }} />
+      )}
+
+      {screen === 'add-account' && (
+        <AddAccount onBack={() => setScreen('dashboard')} onDone={() => setScreen('dashboard')} />
       )}
 
       {screen === 'send' && (
@@ -116,10 +120,7 @@ export function App() {
       )}
 
       {screen === 'tx-detail' && txArgs && (
-        <TxDetail
-          {...txArgs}
-          onBack={() => setScreen('dashboard')}
-        />
+        <TxDetail {...txArgs} onBack={() => setScreen('activity')} />
       )}
 
       {screen === 'addresses' && (
@@ -136,6 +137,8 @@ export function App() {
           onPick={(address) => { setSendPrefill({ ...sendPrefill, recipient: address }); setScreen('send'); }}
         />
       )}
+
+      {showTabBar && <TabBar active={activeTab} onChange={(t) => setScreen(t)} />}
 
       <ToastHost />
     </div>

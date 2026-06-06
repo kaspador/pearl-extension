@@ -8,10 +8,10 @@
 import * as bb from './blockbook';
 import * as pc from './pearlchain';
 import type {
-  AddressData, AddressTx, ExplorerStats, PriceData, ScanResult, TxDetail, UtxoDto,
+  AddressData, AddressTx, ExplorerStats, PriceData, PricePoint, ScanResult, TxDetail, UtxoDto,
 } from './types';
 
-export type { ScanResult, AddressTx, ExplorerStats, PriceData, TxDetail, UtxoDto, AddressData };
+export type { ScanResult, AddressTx, ExplorerStats, PriceData, PricePoint, TxDetail, UtxoDto, AddressData };
 
 export type BackendMode = 'pearlchain' | 'blockbook';
 
@@ -51,5 +51,7 @@ export const scanAddresses     = (addrs: string[]): Promise<ScanResult[]> => _mo
 export const getAddress        = (addr: string, page = 0): Promise<AddressData | null> => _mode === 'blockbook' ? bb.getAddress(base(), addr, page) : pc.getAddress(base(), addr, page);
 export const getWalletHistory  = (addrs: string[]): Promise<AddressTx[] | null> => _mode === 'blockbook' ? bb.getWalletHistory(base(), addrs) : pc.getWalletHistory(base(), addrs);
 export const getPrice          = (): Promise<PriceData | null> => _mode === 'blockbook' ? bb.getPrice() : pc.getPrice(base());
+// Price history is a pearlchain-only feature (Blockbook has no equivalent) — the chart hides when empty.
+export const getPriceHistory   = (range = '7d'): Promise<PricePoint[]> => _mode === 'blockbook' ? Promise.resolve([]) : pc.getPriceHistory(base(), range);
 export const getTx             = (txid: string): Promise<TxDetail | null> => _mode === 'blockbook' ? bb.getTx(base(), txid) : pc.getTx(base(), txid);
 export const broadcastTx       = (hex: string): Promise<{ txid?: string; error?: string }> => _mode === 'blockbook' ? bb.broadcastTx(base(), hex) : pc.broadcastTx(base(), hex);

@@ -2,14 +2,15 @@
 // every popup open (and on demand). Mirrors mobile's walletState.
 
 import type { WalletScan } from '@/pearl/hdwallet';
-import { scanWallet } from '@/pearl/hdwallet';
 import { getHD } from './session';
+import { scanCurrentAccount } from './accounts';
 import { getStats, getPrice, getWalletHistory } from '@/api/client';
 import type { AddressTx } from '@/api/client';
-import { loadMeta } from '@/storage/vault';
+import { loadMeta, selectedAccount, type AccountDescriptor } from '@/storage/vault';
 
 interface CacheState {
   scan:     WalletScan | null;
+  account:  AccountDescriptor | null;
   priceUsd: number | null;
   feeRate:  number | null;
   txs:      AddressTx[];
@@ -18,7 +19,7 @@ interface CacheState {
 }
 
 const cache: CacheState = {
-  scan: null, priceUsd: null, feeRate: null, txs: [], lastSync: 0, syncErr: null,
+  scan: null, account: null, priceUsd: null, feeRate: null, txs: [], lastSync: 0, syncErr: null,
 };
 
 export function getCache(): CacheState { return cache; }
@@ -29,8 +30,9 @@ export async function refreshWallet(): Promise<void> {
   const meta = await loadMeta();
   const network = meta?.network ?? 'mainnet';
   try {
+    cache.account = await selectedAccount();
     const [scan, stats, price] = await Promise.all([
-      scanWallet(hd, network),
+      scanCurrentAccount(network),
       getStats(),
       getPrice(),
     ]);
@@ -48,6 +50,6 @@ export async function refreshWallet(): Promise<void> {
 }
 
 export function clearCache(): void {
-  cache.scan = null; cache.priceUsd = null; cache.feeRate = null;
+  cache.scan = null; cache.account = null; cache.priceUsd = null; cache.feeRate = null;
   cache.txs = []; cache.lastSync = 0; cache.syncErr = null;
 }

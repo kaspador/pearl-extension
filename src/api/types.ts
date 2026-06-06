@@ -60,3 +60,5 @@ export interface PriceData {
   change24h: number | null;
   volume24h: number | null;
 }
+
+export interface PricePoint { time: number; close: number }

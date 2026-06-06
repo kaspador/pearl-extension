@@ -2,7 +2,7 @@
 // function as an arg so the explorer dispatcher stays loose-coupled.
 
 import type { HDKey } from '@scure/bip32';
-import { deriveAddress } from './wallet';
+import { deriveAddress, type Derivation } from './wallet';
 import type { PearlNetwork } from './network';
 import { scanAddresses, type ScanResult } from '@/api/client';
 
@@ -29,7 +29,7 @@ export interface WalletScan {
 }
 
 async function scanChain(
-  hd: HDKey, chain: 0 | 1, network: PearlNetwork,
+  hd: HDKey, chain: 0 | 1, network: PearlNetwork, deriv?: Derivation,
 ): Promise<{ addresses: AddressInfo[]; utxos: ScannedUtxo[] }> {
   const addresses: AddressInfo[] = [];
   const utxos: ScannedUtxo[] = [];
@@ -38,7 +38,7 @@ async function scanChain(
 
   while (consecutiveUnused < GAP_LIMIT && index < MAX_INDEX) {
     const window = Array.from({ length: GAP_LIMIT }, (_, i) =>
-      deriveAddress(hd, chain, index + i, network),
+      deriveAddress(hd, chain, index + i, network, deriv),
     );
     const results: ScanResult[] = await scanAddresses(window.map(w => w.address));
     const byAddr = new Map(results.map(r => [r.address, r]));
@@ -62,8 +62,10 @@ async function scanChain(
   return { addresses, utxos };
 }
 
-export async function scanWallet(hd: HDKey, network: PearlNetwork = 'mainnet'): Promise<WalletScan> {
-  const [ext, chg] = await Promise.all([scanChain(hd, 0, network), scanChain(hd, 1, network)]);
+export async function scanWallet(
+  hd: HDKey, network: PearlNetwork = 'mainnet', deriv?: Derivation,
+): Promise<WalletScan> {
+  const [ext, chg] = await Promise.all([scanChain(hd, 0, network, deriv), scanChain(hd, 1, network, deriv)]);
   const addresses = [...ext.addresses, ...chg.addresses];
   const utxos     = [...ext.utxos, ...chg.utxos];
   const balance   = utxos.reduce((s, u) => s + u.value, 0n);
@@ -75,5 +77,23 @@ export async function scanWallet(hd: HDKey, network: PearlNetwork = 'mainnet'): 
     receiveIndex:      firstUnusedExt?.index ?? 0,
     nextChangeAddress: firstUnusedChg?.address ?? '',
     nextChangeIndex:   firstUnusedChg?.index ?? 0,
+  };
+}
+
+// Scan an imported single-key account: one address, no derivation. Change is
+// returned to the same address (an imported key has nowhere else to go).
+export async function scanSingleAddress(address: string): Promise<WalletScan> {
+  const results: ScanResult[] = await scanAddresses([address]);
+  const r = results[0];
+  const utxos: ScannedUtxo[] = (r?.utxos ?? []).map(u => ({
+    txid: u.txid, vout: u.vout, value: BigInt(u.value),
+    blockHeight: u.blockHeight, address, chain: 0, index: 0,
+  }));
+  const balance = utxos.reduce((s, u) => s + u.value, 0n);
+  return {
+    balance, utxos,
+    addresses: [{ address, chain: 0, index: 0, used: r?.used ?? false, balance }],
+    receiveAddress:    address, receiveIndex: 0,
+    nextChangeAddress: address, nextChangeIndex: 0,
   };
 }

@@ -114,3 +114,25 @@ export const RefreshIcon = (p: IconProps) => (
     <path d="M3 21v-5h5" />
   </Svg>
 );
+
+export const WalletIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+    <path d="M3 5v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2H6a2 2 0 0 1-2-2" />
+    <path d="M16 12h.01" />
+  </Svg>
+);
+
+export const ActivityIcon = (p: IconProps) => (
+  <Svg {...p}><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></Svg>
+);
+
+export const ChevronDownIcon = (p: IconProps) => (
+  <Svg {...p}><path d="m6 9 6 6 6-6" /></Svg>
+);
+
+export const KeyIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m21 2-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3" />
+  </Svg>
+);
