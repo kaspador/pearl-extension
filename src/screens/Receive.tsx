@@ -1,7 +1,8 @@
 // Receive: BIP-21 QR (with optional amount), full address with copy.
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { getCache } from '@/state/walletState';
+import { pnsForAddress } from '@/api/client';
 import { buildPaymentUri } from '@/pearl/network';
 import { Qr } from '@/ui/Qr';
 import { fmtUsd } from '@/ui/format';
@@ -12,6 +13,15 @@ export function Receive({ onBack }: { onBack: () => void }) {
   const c = getCache();
   const address = c.scan?.receiveAddress ?? '';
   const [amount, setAmount] = useState('');
+  const [pnsName, setPnsName] = useState<string | null>(null);
+
+  // Show the .pns name that points at this address, if any.
+  useEffect(() => {
+    if (!address) return;
+    let cancelled = false;
+    pnsForAddress(address).then(n => { if (!cancelled) setPnsName(n); });
+    return () => { cancelled = true; };
+  }, [address]);
   // Normalise comma → dot so European-locale users can type "0,01" too.
   const normalised = amount.replace(',', '.');
   const num = parseFloat(normalised);
@@ -42,6 +52,21 @@ export function Receive({ onBack }: { onBack: () => void }) {
           <Qr value={uri || address} size={200} />
         ) : (
           <div className="w-[200px] h-[200px] bg-ink-800 rounded-lg animate-pulse" />
+        )}
+
+        {pnsName ? (
+          <button
+            onClick={() => { navigator.clipboard.writeText(`${pnsName}.pns`); toast('Name copied'); }}
+            className="text-sm font-semibold text-emerald-700 dark:text-emerald-400"
+            title="Copy your .pns name"
+          >
+            {pnsName}.pns
+          </button>
+        ) : (
+          <a href="https://pearlchain.live/pns" target="_blank" rel="noopener"
+             className="text-xs text-pearl-600 hover:text-pearl-400 underline decoration-pearl-700">
+            Get a .pns name →
+          </a>
         )}
 
         <button

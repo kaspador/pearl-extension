@@ -99,6 +99,27 @@ export async function getPriceHistory(baseUrl: string, range = '7d'): Promise<Pr
   } catch { return []; }
 }
 
+// Resolve a .pns name → address (null if unregistered/invalid).
+export async function resolvePns(baseUrl: string, name: string): Promise<string | null> {
+  try {
+    const r = await timedFetch(`${baseUrl}/api/explorer/pns?name=${encodeURIComponent(name)}`);
+    if (!r.ok) return null;
+    const d = await r.json() as { found?: boolean; address?: string };
+    return d.found && d.address ? d.address : null;
+  } catch { return null; }
+}
+
+// Reverse: the .pns name that resolves to this address (for the Receive screen).
+export async function pnsForAddress(baseUrl: string, address: string): Promise<string | null> {
+  try {
+    const r = await timedFetch(`${baseUrl}/api/explorer/pns?address=${encodeURIComponent(address)}`);
+    if (!r.ok) return null;
+    const d = await r.json() as { names?: { name: string; resolvesHere?: boolean }[] };
+    const hit = d.names?.find(n => n.resolvesHere) ?? d.names?.[0];
+    return hit?.name ?? null;
+  } catch { return null; }
+}
+
 export async function getTx(baseUrl: string, txid: string): Promise<TxDetail | null> {
   try {
     const r = await timedFetch(`${baseUrl}/api/explorer/tx/${encodeURIComponent(txid)}`);

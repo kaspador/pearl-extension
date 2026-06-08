@@ -1,10 +1,10 @@
 // Send flow: paste address + amount + fee, review, sign & broadcast.
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { isValidAddress } from '@/pearl/address';
 import { parsePaymentUri, formatPearl, pearlToGrains, grainsToPearl } from '@/pearl/network';
 import { buildAndSignTx } from '@/pearl/transaction';
-import { broadcastTx } from '@/api/client';
+import { broadcastTx, resolvePns } from '@/api/client';
 import { getCache, refreshWallet } from '@/state/walletState';
 import { buildCurrentSigner } from '@/state/accounts';
 import { loadMeta } from '@/storage/vault';
@@ -70,6 +70,23 @@ export function Send({ onBack, onSent, onPickContact, initialRecipient, initialA
   const [amount, setAmount]     = useState(() => sanitiseAmount(initialAmount ?? ''));
   const [tierIdx, setTierIdx]   = useState(1);
   const [busy, setBusy]         = useState(false);
+  const [pns, setPns]           = useState<{ name: string; address: string } | null>(null);
+  const [pnsChecking, setPnsChk] = useState(false);
+
+  // Resolve a typed .pns name → address (debounced). Raw prl1p… addresses skip it.
+  useEffect(() => {
+    const raw = recipient.trim().toLowerCase();
+    if (raw === '' || raw.startsWith('prl1') || raw.startsWith('tprl1')) { setPns(null); setPnsChk(false); return; }
+    const name = raw.replace(/\.pns$/, '');
+    if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(name)) { setPns(null); setPnsChk(false); return; }
+    let cancelled = false;
+    setPnsChk(true);
+    const t = setTimeout(async () => {
+      const addr = await resolvePns(name);
+      if (!cancelled) { setPns(addr ? { name, address: addr } : null); setPnsChk(false); }
+    }, 350);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [recipient]);
 
   function onPasteRecipient(v: string) {
     const parsed = parsePaymentUri(v);
@@ -82,7 +99,9 @@ export function Send({ onBack, onSent, onPickContact, initialRecipient, initialA
   }
 
   const c = getCache();
-  const addrValid = isValidAddress(recipient.trim());
+  // A resolved .pns name sends to its address; otherwise use what was typed.
+  const effectiveRecipient = pns?.address ?? recipient.trim();
+  const addrValid = isValidAddress(effectiveRecipient);
   const num = parseAmount(amount);
   const amountValid = Number.isFinite(num) && num > 0;
   const amountGrains = amountValid ? pearlToGrains(num) : 0n;
@@ -118,7 +137,7 @@ export function Send({ onBack, onSent, onPickContact, initialRecipient, initialA
       const signer = await buildCurrentSigner(network);
       const tx = buildAndSignTx({
         signer, network,
-        recipient: recipient.trim(),
+        recipient: effectiveRecipient,
         amount: amountGrains,
         utxos: c.scan.utxos,
         feeRate,
@@ -158,13 +177,21 @@ export function Send({ onBack, onSent, onPickContact, initialRecipient, initialA
             <input
               value={recipient}
               onChange={(e) => onPasteRecipient(e.target.value)}
-              placeholder="prl1p… or pearl: URI"
+              placeholder="prl1p…, name.pns, or pearl: URI"
               spellCheck={false}
               autoCorrect="off"
               autoCapitalize="off"
               className="mt-1 w-full bg-ink-900 border border-ink-700 rounded-lg px-3 py-2.5 text-sm font-mono focus:outline-none focus:border-pearl-700 text-pearl-200"
             />
-            {recipient && !addrValid && <div className="text-xs text-rose-700 dark:text-rose-400 mt-1">Invalid Pearl address</div>}
+            {pns ? (
+              <div className="text-xs text-emerald-700 dark:text-emerald-400 mt-1 font-mono break-all">✓ {pns.name}.pns → {pns.address.slice(0, 14)}…{pns.address.slice(-6)}</div>
+            ) : pnsChecking ? (
+              <div className="text-xs text-pearl-600 mt-1">resolving .pns…</div>
+            ) : recipient && !addrValid ? (
+              <div className="text-xs text-rose-700 dark:text-rose-400 mt-1">
+                {/^[a-z0-9][a-z0-9-]{0,62}(\.pns)?$/i.test(recipient.trim()) ? 'No .pns name found' : 'Invalid Pearl address'}
+              </div>
+            ) : null}
           </label>
 
           <label className="block">
@@ -245,8 +272,9 @@ export function Send({ onBack, onSent, onPickContact, initialRecipient, initialA
               {/* Full address — wraps onto multiple lines, monospace, full hex. */}
               <div>
                 <div className="text-pearl-600 text-[11px] uppercase tracking-wider font-semibold mb-1">To</div>
+                {pns && <div className="text-xs text-emerald-700 dark:text-emerald-400 font-semibold mb-0.5">{pns.name}.pns</div>}
                 <div className="font-mono text-xs text-pearl-200 break-all leading-relaxed">
-                  {recipient.trim()}
+                  {effectiveRecipient}
                 </div>
               </div>
               <Row label="Amount"      value={`${formatPearl(amountGrains, 8)} PEARL`}

@@ -53,5 +53,8 @@ export const getWalletHistory  = (addrs: string[]): Promise<AddressTx[] | null> 
 export const getPrice          = (): Promise<PriceData | null> => _mode === 'blockbook' ? bb.getPrice() : pc.getPrice(base());
 // Price history is a pearlchain-only feature (Blockbook has no equivalent) — the chart hides when empty.
 export const getPriceHistory   = (range = '7d'): Promise<PricePoint[]> => _mode === 'blockbook' ? Promise.resolve([]) : pc.getPriceHistory(base(), range);
+// .pns resolution — pearlchain-only (Blockbook has no name service).
+export const resolvePns        = (name: string): Promise<string | null> => _mode === 'blockbook' ? Promise.resolve(null) : pc.resolvePns(base(), name);
+export const pnsForAddress     = (addr: string): Promise<string | null> => _mode === 'blockbook' ? Promise.resolve(null) : pc.pnsForAddress(base(), addr);
 export const getTx             = (txid: string): Promise<TxDetail | null> => _mode === 'blockbook' ? bb.getTx(base(), txid) : pc.getTx(base(), txid);
 export const broadcastTx       = (hex: string): Promise<{ txid?: string; error?: string }> => _mode === 'blockbook' ? bb.broadcastTx(base(), hex) : pc.broadcastTx(base(), hex);
