@@ -27,7 +27,7 @@ function bech32mHrpExpand(hrp: string): number[] {
   return ret;
 }
 
-function convertBits(data: Uint8Array, from: number, to: number, pad = true): number[] {
+function convertBits(data: Uint8Array, from: number, to: number, pad = true): number[] | null {
   let acc = 0, bits = 0;
   const ret: number[] = [];
   const maxv = (1 << to) - 1;
@@ -36,12 +36,18 @@ function convertBits(data: Uint8Array, from: number, to: number, pad = true): nu
     bits += from;
     while (bits >= to) { bits -= to; ret.push((acc >> bits) & maxv); }
   }
-  if (pad && bits > 0) ret.push((acc << (to - bits)) & maxv);
+  if (pad) {
+    if (bits > 0) ret.push((acc << (to - bits)) & maxv);
+  } else if (bits >= from || ((acc << (to - bits)) & maxv) !== 0) {
+    // BIP-173: leftover must be under 5 bits and all zero. Anything else is a
+    // non-canonical encoding and is rejected rather than silently truncated.
+    return null;
+  }
   return ret;
 }
 
 export function encodeBech32m(hrp: string, witnessVersion: number, witnessProgram: Uint8Array): string {
-  const data = [witnessVersion, ...convertBits(witnessProgram, 8, 5)];
+  const data = [witnessVersion, ...convertBits(witnessProgram, 8, 5)!];
   const checksum = bech32mPolymod([...bech32mHrpExpand(hrp), ...data, 0, 0, 0, 0, 0, 0]) ^ 0x2bc830a3;
   let result = hrp + '1';
   for (const d of data) result += CHARSET[d];
@@ -50,6 +56,9 @@ export function encodeBech32m(hrp: string, witnessVersion: number, witnessProgra
 }
 
 export function decodeBech32m(addr: string): { hrp: string; witnessVersion: number; witnessProgram: Uint8Array } | null {
+  if (typeof addr !== 'string' || addr.length > 90) return null;
+  // BIP-173: an address is all-lowercase or all-uppercase, never mixed.
+  if (addr !== addr.toLowerCase() && addr !== addr.toUpperCase()) return null;
   const lower = addr.toLowerCase();
   const sep = lower.lastIndexOf('1');
   if (sep < 1 || sep + 7 > lower.length) return null;
@@ -66,8 +75,11 @@ export function decodeBech32m(addr: string): { hrp: string; witnessVersion: numb
   if (polymod !== 0x2bc830a3) return null;
 
   const payload  = data.slice(0, -6);
+  if (payload.length < 1) return null;
   const wVersion = payload[0];
+  if (wVersion > 16) return null;
   const decoded  = convertBits(new Uint8Array(payload.slice(1)), 5, 8, false);
+  if (!decoded || decoded.length < 2 || decoded.length > 40) return null;
   return { hrp, witnessVersion: wVersion, witnessProgram: new Uint8Array(decoded) };
 }
 
@@ -101,14 +113,21 @@ export function pubkeyToTaprootAddress(xOnlyPubkey: Uint8Array, network: PearlNe
   return encodeBech32m(hrp, 1, taprootOutputKey(xOnlyPubkey));
 }
 
+// Output types Pearl consensus defines for PAYING to (pearld
+// node/txscript/standard.go):
+//   v1  Taproot, P2TR                      32-byte x-only key   (prl1p...)
+//   v2  Pay-to-Merkle-Root, P2MR (BIP 360) 32-byte merkle root  (prl1z...)
+// Every other witness version is reserved for future soft forks, so an output
+// to it is ANYONE-CAN-SPEND under today's consensus rules and any miner can
+// take the coins. A v2 program of the wrong length is unspendable. Both are
+// refused.
+export function isPayableWitnessProgram(version: number, programLength: number): boolean {
+  return (version === 1 || version === 2) && programLength === 32;
+}
+
 export function isValidAddress(addr: string, network: PearlNetwork = 'mainnet'): boolean {
   const { hrp } = getNetwork(network);
   const d = decodeBech32m(addr);
   if (!d || d.hrp !== hrp) return false;
-  // We can PAY TO any valid SegWit program (BIP-141: version 1–16, program
-  // 2–40 bytes). v1 (Taproot) is the wallet's own type and always 32 bytes;
-  // v2 (prl1z…) addresses are live on Pearl and must be sendable too.
-  if (d.witnessVersion === 1) return d.witnessProgram.length === 32;
-  return d.witnessVersion >= 2 && d.witnessVersion <= 16
-      && d.witnessProgram.length >= 2 && d.witnessProgram.length <= 40;
+  return isPayableWitnessProgram(d.witnessVersion, d.witnessProgram.length);
 }

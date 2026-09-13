@@ -3,9 +3,9 @@
 import * as btc from '@scure/btc-signer';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { type HDKey } from '@scure/bip32';
-import { decodeBech32m } from './address';
+import { decodeBech32m, isPayableWitnessProgram } from './address';
 import { deriveAddress, getPrivateKey, toXOnlyPubkey, privateKeyToAddress, defaultDerivation, type Derivation } from './wallet';
-import { type PearlNetwork, DUST_LIMIT } from './network';
+import { type PearlNetwork, DUST_LIMIT, getNetwork } from './network';
 import type { ScannedUtxo } from './hdwallet';
 import { bytesToHex } from './bytes';
 
@@ -37,13 +37,19 @@ function addressToTaprootScript(address: string): Uint8Array {
 // for v2 (prl1z…) recipients, which @scure/btc-signer's addOutputAddress refuses
 // ("Unknown witness program"). Inputs/change still go through the v1-only path —
 // the wallet only ever spends its own Taproot coins.
-function recipientOutputScript(address: string): Uint8Array {
+// Re-validates network AND output type on its own, so a caller that skipped
+// the UI check still cannot build a payment to another chain or to an
+// anyone-can-spend witness version.
+function recipientOutputScript(address: string, network: PearlNetwork): Uint8Array {
   const d = decodeBech32m(address);
   if (!d) throw new Error('Invalid Pearl address');
+  if (d.hrp !== getNetwork(network).hrp) {
+    throw new Error(`That address belongs to a different network (${d.hrp}), not Pearl ${network}.`);
+  }
   const v = d.witnessVersion;
   const prog = d.witnessProgram;
-  if (v < 1 || v > 16 || prog.length < 2 || prog.length > 40) {
-    throw new Error(`Unsupported address type (witness v${v}, ${prog.length}-byte program)`);
+  if (!isPayableWitnessProgram(v, prog.length)) {
+    throw new Error(`Refusing to pay an unsupported address type (witness v${v}, ${prog.length}-byte program). Funds sent there could be lost or taken.`);
   }
   const s = new Uint8Array(2 + prog.length);
   s[0] = 0x50 + v;        // OP_1 … OP_16
@@ -176,8 +182,12 @@ export function buildAndSignTx(args: SendArgs): BuiltTx {
   // A non-v1 recipient (e.g. v2 prl1z…) is a "non-standard" output to btc-signer,
   // so it must be built by hand and the standard-output guard relaxed — but ONLY
   // because of the recipient; inputs and change remain strict v1 Taproot.
+  // Validate the recipient before building anything: throws on a foreign
+  // network or an unpayable witness version.
+  const recipScript = recipientOutputScript(args.recipient, args.network);
   const recipVer = witnessVersionOf(args.recipient);
-  const tx = new btc.Transaction({ allowUnknownOutputs: recipVer !== 1 });
+  // Only P2MR (v2) is unknown to btc-signer, so relax its guard for v2 alone.
+  const tx = new btc.Transaction({ allowUnknownOutputs: recipVer === 2 });
   const keyByHex = new Map<string, Uint8Array>();
   for (const p of prepared) {
     keyByHex.set(bytesToHex(p.priv), p.priv);
@@ -188,7 +198,7 @@ export function buildAndSignTx(args: SendArgs): BuiltTx {
     });
   }
   if (recipVer === 1) tx.addOutputAddress(args.recipient, args.amount, NET);
-  else                tx.addOutput({ script: recipientOutputScript(args.recipient), amount: args.amount });
+  else                tx.addOutput({ script: recipScript, amount: args.amount });
 
   let change = total - args.amount - estFee;
   let feeGrains = estFee;
