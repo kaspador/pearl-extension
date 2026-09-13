@@ -62,6 +62,15 @@ function witnessVersionOf(address: string): number {
   return decodeBech32m(address)?.witnessVersion ?? 1;
 }
 
+// Coins that carry .pns names, as "txid:vout". Spending one outside a name
+// transfer moves the name to wherever its first sat lands, so ordinary sends,
+// consolidations and fee funding all leave them alone.
+export type ProtectedOutpoints = ReadonlySet<string>;
+const keyOf = (u: { txid: string; vout: number }) => `${u.txid}:${u.vout}`;
+function withoutProtected(utxos: ScannedUtxo[], prot?: ProtectedOutpoints): ScannedUtxo[] {
+  return prot && prot.size > 0 ? utxos.filter(u => !prot.has(keyOf(u))) : utxos;
+}
+
 function estVbytes(nIn: number, nOut: number): bigint {
   return BigInt(58 * nIn + 43 * nOut + 11);
 }
@@ -170,13 +179,17 @@ export interface SendArgs {
   utxos:        ScannedUtxo[];
   feeRate:      bigint;
   changeAddress: string;
+  protectedOutpoints?: ProtectedOutpoints;
 }
 
 export function buildAndSignTx(args: SendArgs): BuiltTx {
   const NET = args.network === 'testnet' ? PEARL_NET_TESTNET : PEARL_NET;
-  const { picked, total, estFee } = selectUtxos(args.utxos, args.amount, args.feeRate);
+  const spendable = withoutProtected(args.utxos, args.protectedOutpoints);
+  const held = args.utxos.length - spendable.length;
+  const { picked, total, estFee } = selectUtxos(spendable, args.amount, args.feeRate);
   if (total < args.amount + estFee) {
-    throw new Error(`Insufficient funds: have ${total} grains, need ${args.amount + estFee} (incl. fee).`);
+    throw new Error(`Insufficient funds: have ${total} grains, need ${args.amount + estFee} (incl. fee).`
+      + (held > 0 ? ` ${held} coin${held === 1 ? '' : 's'} holding .pns names ${held === 1 ? 'is' : 'are'} not used for sends.` : ''));
   }
   const prepared = prepareInputs(args.signer, picked);   // verify ALL before building
   // A non-v1 recipient (e.g. v2 prl1z…) is a "non-standard" output to btc-signer,
@@ -230,16 +243,23 @@ export interface PnsTransferArgs {
   feeUtxos:        ScannedUtxo[]; // other spendable coins (excludes the inscription) for fees
   feeRate:         bigint;
   changeAddress:   string;
+  protectedOutpoints?: ProtectedOutpoints; // other names' coins, never used as fee
 }
+
+// A name coin this large is mostly ordinary value. Moving all of it to the
+// recipient would give away that value, so it is split: a small carrier with
+// the name goes to the recipient, the rest comes back as change.
+const FAT_NAME_COIN = 100_000n;
+const NAME_CARRIER  = 10_000n;
 
 // Transfer a .pns name by spending its inscription UTXO to the recipient.
 //
-// The indexer assigns the new owner to `vout[1]` when the tx has ≥2 outputs,
-// else to `vout[0]` (see indexer/pns.ts handleTransfer). So output ORDER is
-// consensus-critical here: a normal send (recipient@0, change@1) would hand the
-// name to the CHANGE address. We therefore:
-//   • single output  → recipient@0           (the inscription coin minus fee)
-//   • with change     → change@0, recipient@1 (recipient always at the read index)
+// The name rides the first sat of its coin (sat-flow, as the pearlchain.live
+// indexer applies it). The name coin is always input 0, so that sat lands in
+// output 0, which is always the recipient:
+//   • ordinary coin      → recipient@0 (the coin minus fee)
+//   • large coin         → recipient@0 small carrier, change@1 the rest
+//   • coin below the fee → recipient@0 carrier, change@1, extra fee coins added
 export function buildPnsTransferTx(args: PnsTransferArgs): BuiltTx {
   // Names are held and indexed on Taproot outputs. Refuse anything else with a
   // clear message instead of btc-signer's "Unknown witness program".
@@ -257,6 +277,20 @@ export function buildPnsTransferTx(args: PnsTransferArgs): BuiltTx {
 
   // Prefer the simplest, cheapest shape: spend ONLY the inscription coin into a
   // single output to the recipient. Works whenever the coin covers fee + dust.
+  const feeSplit = estVbytes(1, 2) * args.feeRate;
+  const splitChange = insc.value - NAME_CARRIER - feeSplit;
+  if (insc.value >= FAT_NAME_COIN && splitChange > DUST_LIMIT) {
+    const [p] = prepareInputs(args.signer, [insc]);
+    const tx = new btc.Transaction({ allowUnknownOutputs: false });
+    tx.addInput({ txid: p.u.txid, index: p.u.vout, witnessUtxo: { script: p.script, amount: p.u.value }, tapInternalKey: p.xOnly });
+    tx.addOutputAddress(args.recipient, NAME_CARRIER, NET);    // vout[0] = recipient, carries the name's sat
+    tx.addOutputAddress(args.changeAddress, splitChange, NET); // vout[1] = the rest back to the sender
+    signWithAll(tx, [p.priv]);
+    tx.finalize();
+    assertAllSigned(tx);
+    return { hex: bytesToHex(tx.extract()), txid: tx.id, feeGrains: feeSplit, changeGrains: splitChange, inputCount: 1 };
+  }
+
   const feeSingle = estVbytes(1, 1) * args.feeRate;
   if (insc.value - feeSingle > DUST_LIMIT) {
     const prepared = prepareInputs(args.signer, [insc]);
@@ -281,7 +315,8 @@ export function buildPnsTransferTx(args: PnsTransferArgs): BuiltTx {
   // back to the sender's own change address.) The recipient gets a minimal
   // carrier amount; the name follows the sat, not the value.
   const RECIP_AMT = DUST_LIMIT + 1n;
-  const others = args.feeUtxos.filter(u => !(u.txid === insc.txid && u.vout === insc.vout));
+  const others = withoutProtected(args.feeUtxos, args.protectedOutpoints)
+    .filter(u => !(u.txid === insc.txid && u.vout === insc.vout));
   const picked: ScannedUtxo[] = [insc];
   let total = insc.value;
   let fee = estVbytes(picked.length, 2) * args.feeRate;
@@ -311,7 +346,6 @@ export function buildPnsTransferTx(args: PnsTransferArgs): BuiltTx {
   } else {
     // No room for change → single output to recipient (vout[0]); fee absorbs the rest.
     tx.addOutputAddress(args.recipient, total - feeGrains, NET);
-    feeGrains = total - (total - feeGrains);
     change = 0n;
   }
 
@@ -327,6 +361,7 @@ export interface CompoundArgs {
   utxos:       ScannedUtxo[];   // everything spendable
   destination: string;          // where to consolidate (typically receive #0)
   feeRate:     bigint;
+  protectedOutpoints?: ProtectedOutpoints; // name coins, left where they are
 }
 
 // Sweep ALL UTXOs into a single output at `destination`. Useful when funds
@@ -334,18 +369,19 @@ export interface CompoundArgs {
 // that rotates addresses). One network fee, one input set, one output.
 export function buildCompoundTx(args: CompoundArgs): BuiltTx {
   const NET = args.network === 'testnet' ? PEARL_NET_TESTNET : PEARL_NET;
+  const utxos = withoutProtected(args.utxos, args.protectedOutpoints);
 
-  if (args.utxos.length === 0) throw new Error('Nothing to compound.');
-  if (args.utxos.length === 1) throw new Error('Only one UTXO — nothing to consolidate.');
+  if (utxos.length === 0) throw new Error('Nothing to compound.');
+  if (utxos.length === 1) throw new Error('Only one UTXO — nothing to consolidate.');
 
-  const total  = args.utxos.reduce((s, u) => s + u.value, 0n);
-  const fee    = estVbytes(args.utxos.length, 1) * args.feeRate;
+  const total  = utxos.reduce((s, u) => s + u.value, 0n);
+  const fee    = estVbytes(utxos.length, 1) * args.feeRate;
   const output = total - fee;
   if (output <= DUST_LIMIT) {
     throw new Error('Balance too small to cover the consolidation fee.');
   }
 
-  const prepared = prepareInputs(args.signer, args.utxos);   // verify ALL before building
+  const prepared = prepareInputs(args.signer, utxos);   // verify ALL before building
   const tx = new btc.Transaction({ allowUnknownOutputs: false });
   const keyByHex = new Map<string, Uint8Array>();
 
@@ -369,6 +405,6 @@ export function buildCompoundTx(args: CompoundArgs): BuiltTx {
     txid:         tx.id,
     feeGrains:    fee,
     changeGrains: 0n,
-    inputCount:   args.utxos.length,
+    inputCount:   utxos.length,
   };
 }

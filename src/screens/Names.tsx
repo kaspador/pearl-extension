@@ -126,6 +126,7 @@ function TransferName({ held, onBack, onDone }: { held: HeldName; onBack: () => 
         recipient: effectiveRecipient,
         inscriptionUtxo: held.utxo,
         feeUtxos: c.scan.utxos,
+        protectedOutpoints: c.protectedOutpoints,
         feeRate: BigInt(c.feeRate ?? 1),
         changeAddress: c.scan.nextChangeAddress || c.scan.receiveAddress,
       });

@@ -129,6 +129,21 @@ export interface OwnedPnsName {
 // Every .pns name OWNED by an address (i.e. this address holds the inscription
 // UTXO), with the coin reference needed to build a transfer. Names that merely
 // resolve here but are owned elsewhere are excluded.
+// Same lookup, but tells failure apart from "owns nothing": null when the
+// index could not be reached or answered badly. Coin protection needs this;
+// treating an outage as "no names" would expose the name coins.
+export async function pnsOwnedByStrict(baseUrl: string, address: string): Promise<OwnedPnsName[] | null> {
+  try {
+    const r = await timedFetch(`${baseUrl}/api/explorer/pns?address=${encodeURIComponent(address)}`);
+    if (!r.ok) return null;
+    const d = await r.json() as { names?: { name: string; owned?: boolean; inscTxid?: string; inscVout?: number }[] };
+    if (!d || typeof d !== 'object' || (d.names != null && !Array.isArray(d.names))) return null;
+    return (d.names ?? [])
+      .filter(n => n.owned && typeof n.inscTxid === 'string' && typeof n.inscVout === 'number')
+      .map(n => ({ name: n.name, inscTxid: n.inscTxid!, inscVout: n.inscVout! }));
+  } catch { return null; }
+}
+
 export async function pnsOwnedBy(baseUrl: string, address: string): Promise<OwnedPnsName[]> {
   try {
     const r = await timedFetch(`${baseUrl}/api/explorer/pns?address=${encodeURIComponent(address)}`);

@@ -6,6 +6,7 @@ import { parsePaymentUri, formatPearl, pearlToGrains, grainsToPearl } from '@/pe
 import { buildAndSignTx } from '@/pearl/transaction';
 import { broadcastTx, resolvePns } from '@/api/client';
 import { getCache, refreshWallet } from '@/state/walletState';
+import { protectedValue } from '@/state/protectedCoins';
 import { buildCurrentSigner } from '@/state/accounts';
 import { loadMeta } from '@/storage/vault';
 import { fmtUsd } from '@/ui/format';
@@ -105,7 +106,9 @@ export function Send({ onBack, onSent, onPickContact, initialRecipient, initialA
   const num = parseAmount(amount);
   const amountValid = Number.isFinite(num) && num > 0;
   const amountGrains = amountValid ? pearlToGrains(num) : 0n;
-  const balance = c.scan?.balance ?? 0n;
+  // Coins that hold .pns names are never spent by a send, so they don't count.
+  const nameValue = protectedValue(c.scan?.utxos ?? [], c.protectedOutpoints);
+  const balance = (c.scan?.balance ?? 0n) - nameValue;
   const hasFunds = amountValid && amountGrains <= balance;
 
   const baseFeeRate = BigInt(c.feeRate ?? 1);
@@ -140,6 +143,7 @@ export function Send({ onBack, onSent, onPickContact, initialRecipient, initialA
         recipient: effectiveRecipient,
         amount: amountGrains,
         utxos: c.scan.utxos,
+        protectedOutpoints: c.protectedOutpoints,
         feeRate,
         changeAddress: c.scan.nextChangeAddress || c.scan.receiveAddress,
       });
@@ -198,7 +202,7 @@ export function Send({ onBack, onSent, onPickContact, initialRecipient, initialA
             <span className="text-[11px] uppercase tracking-wider text-pearl-600 font-semibold flex justify-between items-center">
               <span>Amount</span>
               <button
-                onClick={() => c.scan && setAmount(sanitiseAmount(formatPearl(c.scan.balance, 8).replace(/,/g, '')))}
+                onClick={() => c.scan && setAmount(sanitiseAmount(formatPearl(balance, 8).replace(/,/g, '')))}
                 className="text-[11px] text-pearl-500 hover:text-pearl-200 underline decoration-pearl-700"
                 type="button"
               >MAX</button>
@@ -215,7 +219,7 @@ export function Send({ onBack, onSent, onPickContact, initialRecipient, initialA
             </div>
             <div className="text-xs text-pearl-600 mt-1 flex justify-between">
               <span>
-                Balance: {c.scan ? formatPearl(c.scan.balance, 4) : '—'}
+                {nameValue > 0n ? 'Spendable' : 'Balance'}: {c.scan ? formatPearl(balance, 4) : '—'}
                 {balanceUsd != null && (
                   <span className="text-pearl-500 ml-1">≈ ${fmtUsd(balanceUsd)}</span>
                 )}
@@ -225,6 +229,12 @@ export function Send({ onBack, onSent, onPickContact, initialRecipient, initialA
               )}
             </div>
             {amountValid && !hasFunds && <div className="text-xs text-rose-700 dark:text-rose-400 mt-1">Insufficient balance</div>}
+            {nameValue > 0n && (
+              <div className="text-xs text-pearl-600 mt-1">{formatPearl(nameValue, 4)} PEARL sits on coins that hold your .pns names and stays put.</div>
+            )}
+            {c.scan && !c.namesVerified && (
+              <div className="text-xs text-amber-700 dark:text-amber-400 mt-1">Could not check for .pns names right now. If this account holds names, sending could move them.</div>
+            )}
           </label>
 
           <div>

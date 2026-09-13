@@ -58,5 +58,6 @@ export const getPriceHistory   = (range = '7d'): Promise<PricePoint[]> => _mode 
 export const resolvePns        = (name: string): Promise<string | null> => _mode === 'blockbook' ? Promise.resolve(null) : pc.resolvePns(base(), name);
 export const pnsForAddress     = (addr: string): Promise<string | null> => _mode === 'blockbook' ? Promise.resolve(null) : pc.pnsForAddress(base(), addr);
 export const pnsOwnedBy         = (addr: string): Promise<pc.OwnedPnsName[]> => _mode === 'blockbook' ? Promise.resolve([]) : pc.pnsOwnedBy(base(), addr);
+export const pnsOwnedByStrict   = (addr: string): Promise<pc.OwnedPnsName[] | null> => _mode === 'blockbook' ? Promise.resolve(null) : pc.pnsOwnedByStrict(base(), addr);
 export const getTx             = (txid: string): Promise<TxDetail | null> => _mode === 'blockbook' ? bb.getTx(base(), txid) : pc.getTx(base(), txid);
 export const broadcastTx       = (hex: string): Promise<{ txid?: string; error?: string }> => _mode === 'blockbook' ? bb.broadcastTx(base(), hex) : pc.broadcastTx(base(), hex);

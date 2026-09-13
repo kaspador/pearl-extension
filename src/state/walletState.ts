@@ -4,7 +4,8 @@
 import type { WalletScan } from '@/pearl/hdwallet';
 import { getHD } from './session';
 import { scanCurrentAccount } from './accounts';
-import { getStats, getPrice, getWalletHistory } from '@/api/client';
+import { getStats, getPrice, getWalletHistory, pnsOwnedByStrict } from '@/api/client';
+import { resolveProtectedCoins } from './protectedCoins';
 import type { AddressTx } from '@/api/client';
 import { loadMeta, selectedAccount, type AccountDescriptor } from '@/storage/vault';
 
@@ -16,10 +17,15 @@ interface CacheState {
   txs:      AddressTx[];
   lastSync: number;            // ms
   syncErr:  string | null;
+  // Coins holding .pns names ("txid:vout"), excluded from sends and sweeps.
+  protectedOutpoints: Set<string>;
+  // False when the name index could not be fully checked on the last refresh.
+  namesVerified: boolean;
 }
 
 const cache: CacheState = {
   scan: null, account: null, priceUsd: null, feeRate: null, txs: [], lastSync: 0, syncErr: null,
+  protectedOutpoints: new Set(), namesVerified: false,
 };
 
 export function getCache(): CacheState { return cache; }
@@ -36,6 +42,13 @@ export async function refreshWallet(): Promise<void> {
       getStats(),
       getPrice(),
     ]);
+    // Resolve name coins BEFORE publishing the scan, so no screen ever sees
+    // coins without knowing which of them are protected.
+    const prot = cache.account
+      ? await resolveProtectedCoins(cache.account.id, scan.utxos.map(u => u.address), pnsOwnedByStrict)
+      : { outpoints: new Set<string>(), verified: false };
+    cache.protectedOutpoints = prot.outpoints;
+    cache.namesVerified      = prot.verified;
     cache.scan     = scan;
     cache.priceUsd = price?.price ?? null;
     cache.feeRate  = stats?.recommendedFee ?? null;
@@ -52,4 +65,5 @@ export async function refreshWallet(): Promise<void> {
 export function clearCache(): void {
   cache.scan = null; cache.account = null; cache.priceUsd = null; cache.feeRate = null;
   cache.txs = []; cache.lastSync = 0; cache.syncErr = null;
+  cache.protectedOutpoints = new Set(); cache.namesVerified = false;
 }

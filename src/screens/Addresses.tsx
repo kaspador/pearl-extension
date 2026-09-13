@@ -32,7 +32,8 @@ export function Addresses({ onBack }: { onBack: () => void }) {
 
   const c = getCache();
   const scan = c.scan;
-  const utxoCount = scan?.utxos.length ?? 0;
+  // Name coins are left out of a consolidation, so only count the others.
+  const utxoCount = (scan?.utxos ?? []).filter(u => !c.protectedOutpoints.has(`${u.txid}:${u.vout}`)).length;
   const funded = (scan?.addresses ?? []).filter(a => a.balance > 0n);
   const canCompound = utxoCount >= 2;
   const priceUsd = c.priceUsd ?? null;
@@ -56,7 +57,7 @@ export function Addresses({ onBack }: { onBack: () => void }) {
       const signer  = await buildCurrentSigner(network);
       const dest    = scan.receiveAddress;   // consolidate into the current account's receive address
       const feeRate = BigInt(c.feeRate ?? 1);
-      const built   = buildCompoundTx({ signer, network, utxos: scan.utxos, destination: dest, feeRate });
+      const built   = buildCompoundTx({ signer, network, utxos: scan.utxos, protectedOutpoints: c.protectedOutpoints, destination: dest, feeRate });
       const res     = await broadcastTx(built.hex);
       if (res.error || !res.txid) {
         toast(res.error ?? 'Compound failed');
