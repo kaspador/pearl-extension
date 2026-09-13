@@ -1,7 +1,7 @@
 // Taproot key-path send. Mirrors mobile transaction.ts but Buffer-free.
 
 import * as btc from '@scure/btc-signer';
-import { secp256k1 } from '@noble/curves/secp256k1';
+import { secp256k1 } from '@noble/curves/secp256k1.js';
 import { type HDKey } from '@scure/bip32';
 import { decodeBech32m, isPayableWitnessProgram } from './address';
 import { deriveAddress, getPrivateKey, toXOnlyPubkey, privateKeyToAddress, defaultDerivation, type Derivation } from './wallet';

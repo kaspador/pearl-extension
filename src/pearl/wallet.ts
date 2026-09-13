@@ -1,10 +1,10 @@
 // Pearl wallet: BIP-39 mnemonic + BIP-86 Taproot derivation.
 
 import { generateMnemonic, mnemonicToSeed, validateMnemonic } from '@scure/bip39';
-import { wordlist } from '@scure/bip39/wordlists/english';
+import { wordlist } from '@scure/bip39/wordlists/english.js';
 import { HDKey } from '@scure/bip32';
-import { secp256k1 } from '@noble/curves/secp256k1';
-import { sha256 } from '@noble/hashes/sha2';
+import { secp256k1 } from '@noble/curves/secp256k1.js';
+import { sha256 } from '@noble/hashes/sha2.js';
 import { base58check } from '@scure/base';
 import { type PearlNetwork, getNetwork } from './network';
 import { pubkeyToTaprootAddress } from './address';
@@ -91,7 +91,7 @@ export function getPrivateKey(
 // no derivation path to guess. Accepts 64-char hex (optional 0x) or WIF.
 
 function assertValidScalar(k: Uint8Array): void {
-  if (k.length !== 32 || !secp256k1.utils.isValidPrivateKey(k)) {
+  if (k.length !== 32 || !secp256k1.utils.isValidSecretKey(k)) {
     throw new Error('Invalid private key value.');
   }
 }

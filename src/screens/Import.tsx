@@ -11,7 +11,7 @@
 //   - checksum validated before continuing
 
 import { useMemo, useRef, useState } from 'react';
-import { wordlist } from '@scure/bip39/wordlists/english';
+import { wordlist } from '@scure/bip39/wordlists/english.js';
 import { isValidMnemonic, mnemonicToHDKey } from '@/pearl/wallet';
 import { detectDerivation } from '@/pearl/import';
 import { scanAddresses } from '@/api/client';

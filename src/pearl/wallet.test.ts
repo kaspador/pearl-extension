@@ -3,7 +3,7 @@ import {
   mnemonicToHDKey, deriveAddress, getPrivateKey, privateKeyToAddress,
   parsePrivateKey, isValidMnemonic, toXOnlyPubkey,
 } from './wallet';
-import { secp256k1 } from '@noble/curves/secp256k1';
+import { secp256k1 } from '@noble/curves/secp256k1.js';
 import { bytesToHex, hexToBytes } from './bytes';
 
 // Standard BIP-39 test vector (valid checksum).

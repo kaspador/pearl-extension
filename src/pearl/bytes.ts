@@ -2,7 +2,7 @@
 // extension doesn't have Buffer, so we use the standard browser APIs.
 // Drop-in replacement for the `Buffer.from(b).toString('hex')` calls we port.
 
-import { bytesToHex as nobleHex, hexToBytes as nobleFromHex } from '@noble/hashes/utils';
+import { bytesToHex as nobleHex, hexToBytes as nobleFromHex } from '@noble/hashes/utils.js';
 
 export const bytesToHex = nobleHex;
 export const hexToBytes = nobleFromHex;

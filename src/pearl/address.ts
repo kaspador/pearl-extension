@@ -1,8 +1,8 @@
 // bech32m + Taproot key-path derivation for Pearl. Ported from mobile,
 // swapping Buffer for browser hex helpers.
 
-import { sha256 } from '@noble/hashes/sha2';
-import { secp256k1 } from '@noble/curves/secp256k1';
+import { sha256 } from '@noble/hashes/sha2.js';
+import { secp256k1 } from '@noble/curves/secp256k1.js';
 import { type PearlNetwork, getNetwork } from './network';
 import { bytesToHex } from './bytes';
 
