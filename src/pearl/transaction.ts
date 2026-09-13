@@ -241,6 +241,17 @@ export interface PnsTransferArgs {
 //   • single output  → recipient@0           (the inscription coin minus fee)
 //   • with change     → change@0, recipient@1 (recipient always at the read index)
 export function buildPnsTransferTx(args: PnsTransferArgs): BuiltTx {
+  // Names are held and indexed on Taproot outputs. Refuse anything else with a
+  // clear message instead of btc-signer's "Unknown witness program".
+  {
+    const d = decodeBech32m(args.recipient);
+    if (!d || d.hrp !== getNetwork(args.network).hrp) {
+      throw new Error('Enter a Pearl address on this network to receive the name.');
+    }
+    if (d.witnessVersion !== 1 || d.witnessProgram.length !== 32) {
+      throw new Error('Names can only be sent to a standard Pearl address (prl1p…).');
+    }
+  }
   const NET = args.network === 'testnet' ? PEARL_NET_TESTNET : PEARL_NET;
   const insc = args.inscriptionUtxo;
 
@@ -263,8 +274,12 @@ export function buildPnsTransferTx(args: PnsTransferArgs): BuiltTx {
   }
 
   // Inscription coin is too small to also pay the fee → pull in extra coins and
-  // emit change@0 + recipient@1. The recipient gets a minimal carrier amount;
-  // the name follows the coin regardless of value.
+  // emit recipient@0 + change@1. The inscription coin is ALWAYS input 0, so the
+  // name's first sat lands in output 0, the recipient. This is the sat-flow
+  // rule the pearlchain.live indexer applies. (1.3.1 emitted change@0 +
+  // recipient@1 for an older indexer rule, which under sat-flow sends the name
+  // back to the sender's own change address.) The recipient gets a minimal
+  // carrier amount; the name follows the sat, not the value.
   const RECIP_AMT = DUST_LIMIT + 1n;
   const others = args.feeUtxos.filter(u => !(u.txid === insc.txid && u.vout === insc.vout));
   const picked: ScannedUtxo[] = [insc];
@@ -291,8 +306,8 @@ export function buildPnsTransferTx(args: PnsTransferArgs): BuiltTx {
   let change = total - RECIP_AMT - fee;
   let feeGrains = fee;
   if (change > DUST_LIMIT) {
-    tx.addOutputAddress(args.changeAddress, change, NET);     // vout[0] = change (sender)
-    tx.addOutputAddress(args.recipient, RECIP_AMT, NET);      // vout[1] = recipient (indexer reads this)
+    tx.addOutputAddress(args.recipient, RECIP_AMT, NET);      // vout[0] = recipient, carries the name's sat
+    tx.addOutputAddress(args.changeAddress, change, NET);     // vout[1] = change (sender)
   } else {
     // No room for change → single output to recipient (vout[0]); fee absorbs the rest.
     tx.addOutputAddress(args.recipient, total - feeGrains, NET);
