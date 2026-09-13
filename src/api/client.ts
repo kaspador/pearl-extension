@@ -12,6 +12,7 @@ import type {
 } from './types';
 
 export type { ScanResult, AddressTx, ExplorerStats, PriceData, PricePoint, TxDetail, UtxoDto, AddressData };
+export type { OwnedPnsName } from './pearlchain';
 
 export type BackendMode = 'pearlchain' | 'blockbook';
 
@@ -56,5 +57,6 @@ export const getPriceHistory   = (range = '7d'): Promise<PricePoint[]> => _mode 
 // .pns resolution — pearlchain-only (Blockbook has no name service).
 export const resolvePns        = (name: string): Promise<string | null> => _mode === 'blockbook' ? Promise.resolve(null) : pc.resolvePns(base(), name);
 export const pnsForAddress     = (addr: string): Promise<string | null> => _mode === 'blockbook' ? Promise.resolve(null) : pc.pnsForAddress(base(), addr);
+export const pnsOwnedBy         = (addr: string): Promise<pc.OwnedPnsName[]> => _mode === 'blockbook' ? Promise.resolve([]) : pc.pnsOwnedBy(base(), addr);
 export const getTx             = (txid: string): Promise<TxDetail | null> => _mode === 'blockbook' ? bb.getTx(base(), txid) : pc.getTx(base(), txid);
 export const broadcastTx       = (hex: string): Promise<{ txid?: string; error?: string }> => _mode === 'blockbook' ? bb.broadcastTx(base(), hex) : pc.broadcastTx(base(), hex);

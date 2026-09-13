@@ -19,6 +19,7 @@ import { createWallet } from '@/storage/vault';
 import { unlock as sessionUnlock } from '@/state/session';
 import { toast } from '@/ui/Toast';
 import { ScreenHeader } from '@/ui/ScreenHeader';
+import { PwMatch } from '@/ui/PwMatch';
 
 export function Import({ onDone, onBack }: { onDone: () => void; onBack: () => void }) {
   const [count, setCount]     = useState<12 | 24>(12);
@@ -180,6 +181,7 @@ export function Import({ onDone, onBack }: { onDone: () => void; onBack: () => v
               className="mt-1 w-full bg-ink-900 border border-ink-700 rounded-lg px-3 py-2.5 text-sm font-mono focus:outline-none focus:border-pearl-700 text-pearl-200"
             />
           </label>
+          <PwMatch password={password} confirm={confirm} />
           <button
             disabled={busy || password.length < 8 || password !== confirm}
             onClick={finish}

@@ -120,6 +120,26 @@ export async function pnsForAddress(baseUrl: string, address: string): Promise<s
   } catch { return null; }
 }
 
+export interface OwnedPnsName {
+  name:      string;
+  inscTxid:  string;   // the coin (txid:vout) that carries the name — spent to transfer
+  inscVout:  number;
+}
+
+// Every .pns name OWNED by an address (i.e. this address holds the inscription
+// UTXO), with the coin reference needed to build a transfer. Names that merely
+// resolve here but are owned elsewhere are excluded.
+export async function pnsOwnedBy(baseUrl: string, address: string): Promise<OwnedPnsName[]> {
+  try {
+    const r = await timedFetch(`${baseUrl}/api/explorer/pns?address=${encodeURIComponent(address)}`);
+    if (!r.ok) return [];
+    const d = await r.json() as { names?: { name: string; owned?: boolean; inscTxid?: string; inscVout?: number }[] };
+    return (d.names ?? [])
+      .filter(n => n.owned && n.inscTxid != null && n.inscVout != null)
+      .map(n => ({ name: n.name, inscTxid: n.inscTxid!, inscVout: n.inscVout! }));
+  } catch { return []; }
+}
+
 export async function getTx(baseUrl: string, txid: string): Promise<TxDetail | null> {
   try {
     const r = await timedFetch(`${baseUrl}/api/explorer/tx/${encodeURIComponent(txid)}`);

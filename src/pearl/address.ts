@@ -104,5 +104,11 @@ export function pubkeyToTaprootAddress(xOnlyPubkey: Uint8Array, network: PearlNe
 export function isValidAddress(addr: string, network: PearlNetwork = 'mainnet'): boolean {
   const { hrp } = getNetwork(network);
   const d = decodeBech32m(addr);
-  return !!d && d.hrp === hrp && d.witnessVersion === 1 && d.witnessProgram.length === 32;
+  if (!d || d.hrp !== hrp) return false;
+  // We can PAY TO any valid SegWit program (BIP-141: version 1–16, program
+  // 2–40 bytes). v1 (Taproot) is the wallet's own type and always 32 bytes;
+  // v2 (prl1z…) addresses are live on Pearl and must be sendable too.
+  if (d.witnessVersion === 1) return d.witnessProgram.length === 32;
+  return d.witnessVersion >= 2 && d.witnessVersion <= 16
+      && d.witnessProgram.length >= 2 && d.witnessProgram.length <= 40;
 }

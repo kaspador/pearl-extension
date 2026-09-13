@@ -11,6 +11,7 @@ import { createWallet } from '@/storage/vault';
 import { unlock as sessionUnlock } from '@/state/session';
 import { toast } from '@/ui/Toast';
 import { ChevronLeftIcon, CopyIcon } from '@/ui/icons';
+import { PwMatch } from '@/ui/PwMatch';
 
 type Step = 'show' | 'verify' | 'password';
 
@@ -20,9 +21,10 @@ interface Props {
 }
 
 export function Create({ onBack, onDone }: Props) {
-  // Generate once per mount. If the user goes back to onboarding and comes
-  // back, they get a fresh phrase. Nothing has touched disk yet.
-  const mnemonic = useMemo(() => generateWalletMnemonic(), []);
+  // Phrase length is the user's choice (12 = 128-bit, 24 = 256-bit). Regenerated
+  // when the length changes; nothing touches disk until the password step.
+  const [count, setCount]    = useState<12 | 24>(12);
+  const mnemonic = useMemo(() => generateWalletMnemonic(count), [count]);
   const words    = mnemonic.split(' ');
 
   const [step, setStep]      = useState<Step>('show');
@@ -31,16 +33,24 @@ export function Create({ onBack, onDone }: Props) {
   const [confirm,  setCf]    = useState('');
   const [busy, setBusy]      = useState(false);
 
-  // Pick 3 random word positions to verify on step 2.
+  // Pick 3 random word positions to verify on step 2. Reshuffles with the phrase.
   const verifyPositions = useMemo(() => {
-    const all = Array.from({ length: 12 }, (_, i) => i);
+    const all = Array.from({ length: words.length }, (_, i) => i);
     for (let i = all.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [all[i], all[j]] = [all[j], all[i]];
     }
     return all.slice(0, 3).sort((a, b) => a - b);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mnemonic]);
   const [verifyInputs, setVerify] = useState<Record<number, string>>({});
+
+  function chooseCount(n: 12 | 24) {
+    if (n === count) return;
+    setCount(n);          // regenerates the phrase
+    setVerify({});        // old answers no longer apply
+    setOk(false);         // re-confirm the new phrase
+  }
   const verifyValid = verifyPositions.every(
     i => (verifyInputs[i] ?? '').trim().toLowerCase() === words[i],
   );
@@ -76,8 +86,19 @@ export function Create({ onBack, onDone }: Props) {
       <div className="flex-1 flex flex-col min-h-0">
         {header('Recovery phrase', 1, onBack)}
         <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-3">
+          {/* 12 / 24 word choice */}
+          <div className="flex items-center justify-center gap-1.5">
+            {([12, 24] as const).map(n => (
+              <button
+                key={n}
+                onClick={() => chooseCount(n)}
+                className={`seg tap rounded-lg px-4 py-1.5 text-xs ${count === n ? 'seg-on' : ''}`}
+              >{n} words</button>
+            ))}
+          </div>
+
           <p className="text-xs text-pearl-600 leading-relaxed">
-            Write these 12 words down on paper. <span className="text-rose-700 dark:text-rose-300 font-semibold">Lose them and the wallet is gone — no support, no backup.</span>
+            Write these {words.length} words down on paper. <span className="text-rose-700 dark:text-rose-300 font-semibold">Lose them and the wallet is gone — no support, no backup.</span>
           </p>
 
           <div className="grid grid-cols-3 gap-1.5">
@@ -96,7 +117,7 @@ export function Create({ onBack, onDone }: Props) {
             }}
             className="rounded-lg border border-ink-700 hover:bg-ink-800 py-2 text-xs text-pearl-300 flex items-center justify-center gap-1.5"
           >
-            <CopyIcon size={14} /> Copy 12-word phrase
+            <CopyIcon size={14} /> Copy {words.length}-word phrase
           </button>
 
           <label className="flex items-start gap-2 mt-1 cursor-pointer">
@@ -107,7 +128,7 @@ export function Create({ onBack, onDone }: Props) {
               className="mt-1 shrink-0"
             />
             <span className="text-xs text-pearl-500 leading-relaxed">
-              I&apos;ve saved these 12 words somewhere safe.
+              I&apos;ve saved these {words.length} words somewhere safe.
             </span>
           </label>
         </div>
@@ -196,6 +217,7 @@ export function Create({ onBack, onDone }: Props) {
             className="mt-1 w-full bg-ink-900 border border-ink-700 rounded-lg px-3 py-2.5 text-sm font-mono focus:outline-none focus:border-pearl-700 text-pearl-200"
           />
         </label>
+        <PwMatch password={password} confirm={confirm} />
       </div>
       <div className="px-4 pt-2 pb-4 border-t border-ink-700 shrink-0">
         <button

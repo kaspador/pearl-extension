@@ -48,7 +48,7 @@ export function AccountSwitcher({ onChanged, onAddAccount }: { onChanged: () => 
       </button>
 
       {open && (
-        <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 w-56 bg-ink-900 border border-ink-700 rounded-xl shadow-lg z-30 overflow-hidden">
+        <div className="absolute left-0 top-full mt-1 w-56 bg-ink-900 border border-ink-700 rounded-xl shadow-lg z-30 overflow-hidden">
           <div className="max-h-60 overflow-y-auto py-1">
             {accounts.map(a => (
               <button

@@ -32,6 +32,30 @@ function addressToTaprootScript(address: string): Uint8Array {
   return s;
 }
 
+// Output script to PAY a recipient of any SegWit version: OP_<v> <program>.
+// For v1 this is identical to addressToTaprootScript (OP_1 PUSH32). We need it
+// for v2 (prl1z…) recipients, which @scure/btc-signer's addOutputAddress refuses
+// ("Unknown witness program"). Inputs/change still go through the v1-only path —
+// the wallet only ever spends its own Taproot coins.
+function recipientOutputScript(address: string): Uint8Array {
+  const d = decodeBech32m(address);
+  if (!d) throw new Error('Invalid Pearl address');
+  const v = d.witnessVersion;
+  const prog = d.witnessProgram;
+  if (v < 1 || v > 16 || prog.length < 2 || prog.length > 40) {
+    throw new Error(`Unsupported address type (witness v${v}, ${prog.length}-byte program)`);
+  }
+  const s = new Uint8Array(2 + prog.length);
+  s[0] = 0x50 + v;        // OP_1 … OP_16
+  s[1] = prog.length;     // direct push (program ≤ 40 ≤ 75 bytes)
+  s.set(prog, 2);
+  return s;
+}
+
+function witnessVersionOf(address: string): number {
+  return decodeBech32m(address)?.witnessVersion ?? 1;
+}
+
 function estVbytes(nIn: number, nOut: number): bigint {
   return BigInt(58 * nIn + 43 * nOut + 11);
 }
@@ -149,7 +173,11 @@ export function buildAndSignTx(args: SendArgs): BuiltTx {
     throw new Error(`Insufficient funds: have ${total} grains, need ${args.amount + estFee} (incl. fee).`);
   }
   const prepared = prepareInputs(args.signer, picked);   // verify ALL before building
-  const tx = new btc.Transaction({ allowUnknownOutputs: false });
+  // A non-v1 recipient (e.g. v2 prl1z…) is a "non-standard" output to btc-signer,
+  // so it must be built by hand and the standard-output guard relaxed — but ONLY
+  // because of the recipient; inputs and change remain strict v1 Taproot.
+  const recipVer = witnessVersionOf(args.recipient);
+  const tx = new btc.Transaction({ allowUnknownOutputs: recipVer !== 1 });
   const keyByHex = new Map<string, Uint8Array>();
   for (const p of prepared) {
     keyByHex.set(bytesToHex(p.priv), p.priv);
@@ -159,7 +187,8 @@ export function buildAndSignTx(args: SendArgs): BuiltTx {
       tapInternalKey: p.xOnly,
     });
   }
-  tx.addOutputAddress(args.recipient, args.amount, NET);
+  if (recipVer === 1) tx.addOutputAddress(args.recipient, args.amount, NET);
+  else                tx.addOutput({ script: recipientOutputScript(args.recipient), amount: args.amount });
 
   let change = total - args.amount - estFee;
   let feeGrains = estFee;
@@ -181,6 +210,90 @@ export function buildAndSignTx(args: SendArgs): BuiltTx {
     changeGrains: change,
     inputCount:   picked.length,
   };
+}
+
+export interface PnsTransferArgs {
+  signer:          AccountSigner;
+  network:         PearlNetwork;
+  recipient:       string;        // resolved Pearl address of the new owner
+  inscriptionUtxo: ScannedUtxo;   // the coin that carries the name — MUST be spent
+  feeUtxos:        ScannedUtxo[]; // other spendable coins (excludes the inscription) for fees
+  feeRate:         bigint;
+  changeAddress:   string;
+}
+
+// Transfer a .pns name by spending its inscription UTXO to the recipient.
+//
+// The indexer assigns the new owner to `vout[1]` when the tx has ≥2 outputs,
+// else to `vout[0]` (see indexer/pns.ts handleTransfer). So output ORDER is
+// consensus-critical here: a normal send (recipient@0, change@1) would hand the
+// name to the CHANGE address. We therefore:
+//   • single output  → recipient@0           (the inscription coin minus fee)
+//   • with change     → change@0, recipient@1 (recipient always at the read index)
+export function buildPnsTransferTx(args: PnsTransferArgs): BuiltTx {
+  const NET = args.network === 'testnet' ? PEARL_NET_TESTNET : PEARL_NET;
+  const insc = args.inscriptionUtxo;
+
+  // Prefer the simplest, cheapest shape: spend ONLY the inscription coin into a
+  // single output to the recipient. Works whenever the coin covers fee + dust.
+  const feeSingle = estVbytes(1, 1) * args.feeRate;
+  if (insc.value - feeSingle > DUST_LIMIT) {
+    const prepared = prepareInputs(args.signer, [insc]);
+    const tx = new btc.Transaction({ allowUnknownOutputs: false });
+    const keyByHex = new Map<string, Uint8Array>();
+    for (const p of prepared) {
+      keyByHex.set(bytesToHex(p.priv), p.priv);
+      tx.addInput({ txid: p.u.txid, index: p.u.vout, witnessUtxo: { script: p.script, amount: p.u.value }, tapInternalKey: p.xOnly });
+    }
+    tx.addOutputAddress(args.recipient, insc.value - feeSingle, NET);  // vout[0] = recipient
+    signWithAll(tx, [...keyByHex.values()]);
+    tx.finalize();
+    assertAllSigned(tx);
+    return { hex: bytesToHex(tx.extract()), txid: tx.id, feeGrains: feeSingle, changeGrains: 0n, inputCount: 1 };
+  }
+
+  // Inscription coin is too small to also pay the fee → pull in extra coins and
+  // emit change@0 + recipient@1. The recipient gets a minimal carrier amount;
+  // the name follows the coin regardless of value.
+  const RECIP_AMT = DUST_LIMIT + 1n;
+  const others = args.feeUtxos.filter(u => !(u.txid === insc.txid && u.vout === insc.vout));
+  const picked: ScannedUtxo[] = [insc];
+  let total = insc.value;
+  let fee = estVbytes(picked.length, 2) * args.feeRate;
+  for (const u of [...others].sort((a, b) => (b.value > a.value ? 1 : -1))) {
+    if (total >= RECIP_AMT + fee + DUST_LIMIT) break;       // enough for recipient + fee + a non-dust change
+    picked.push(u);
+    total += u.value;
+    fee = estVbytes(picked.length, 2) * args.feeRate;
+  }
+  if (total < RECIP_AMT + fee) {
+    throw new Error('Not enough balance to cover the transfer fee. Add a little PEARL to this account and retry.');
+  }
+
+  const prepared = prepareInputs(args.signer, picked);
+  const tx = new btc.Transaction({ allowUnknownOutputs: false });
+  const keyByHex = new Map<string, Uint8Array>();
+  for (const p of prepared) {
+    keyByHex.set(bytesToHex(p.priv), p.priv);
+    tx.addInput({ txid: p.u.txid, index: p.u.vout, witnessUtxo: { script: p.script, amount: p.u.value }, tapInternalKey: p.xOnly });
+  }
+
+  let change = total - RECIP_AMT - fee;
+  let feeGrains = fee;
+  if (change > DUST_LIMIT) {
+    tx.addOutputAddress(args.changeAddress, change, NET);     // vout[0] = change (sender)
+    tx.addOutputAddress(args.recipient, RECIP_AMT, NET);      // vout[1] = recipient (indexer reads this)
+  } else {
+    // No room for change → single output to recipient (vout[0]); fee absorbs the rest.
+    tx.addOutputAddress(args.recipient, total - feeGrains, NET);
+    feeGrains = total - (total - feeGrains);
+    change = 0n;
+  }
+
+  signWithAll(tx, [...keyByHex.values()]);
+  tx.finalize();
+  assertAllSigned(tx);
+  return { hex: bytesToHex(tx.extract()), txid: tx.id, feeGrains, changeGrains: change, inputCount: picked.length };
 }
 
 export interface CompoundArgs {

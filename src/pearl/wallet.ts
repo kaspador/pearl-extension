@@ -39,8 +39,8 @@ export function toXOnlyPubkey(pubkey: Uint8Array): Uint8Array {
   return pubkey.length === 33 ? pubkey.slice(1) : pubkey;
 }
 
-export function generateWalletMnemonic(): string {
-  return generateMnemonic(wordlist, 128); // 12 words
+export function generateWalletMnemonic(words: 12 | 24 = 12): string {
+  return generateMnemonic(wordlist, words === 24 ? 256 : 128);
 }
 
 // Accepts 12 or 24 words — @scure/bip39 validateMnemonic verifies the checksum

@@ -4,7 +4,7 @@
 // nav rows, distinct danger styling for Delete wallet.
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { loadMeta, updateMeta, clearWallet, type WalletMeta } from '@/storage/vault';
+import { loadMeta, updateMeta, clearWallet, unlockMnemonic, type WalletMeta } from '@/storage/vault';
 import { detectBackend, setBackend, type BackendMode } from '@/api/client';
 import { lock } from '@/state/session';
 import { clearCache } from '@/state/walletState';
@@ -16,19 +16,22 @@ import { ChevronRightIcon } from '@/ui/icons';
 const DEFAULT_BACKEND = 'https://pearlchain.live';
 
 interface SettingsProps {
-  onBack:      () => void;
-  onLocked:    () => void;
-  onDeleted:   () => void;   // wallet wiped → route to onboarding, not unlock
-  onViewSeed:  () => void;
-  onAddresses: () => void;
-  onContacts:  () => void;
+  onBack:       () => void;
+  onLocked:     () => void;
+  onDeleted:    () => void;   // wallet wiped → route to onboarding, not unlock
+  onViewSeed:   () => void;
+  onExportKey:  () => void;
+  onAddresses:  () => void;
+  onContacts:   () => void;
+  onNames:      () => void;
 }
 
-export function Settings({ onBack, onLocked, onDeleted, onViewSeed, onAddresses, onContacts }: SettingsProps) {
+export function Settings({ onBack, onLocked, onDeleted, onViewSeed, onExportKey, onAddresses, onContacts, onNames }: SettingsProps) {
   const [meta, setMeta]       = useState<WalletMeta | null>(null);
   const [url,  setUrl]        = useState('');
   const [busy, setBusy]       = useState(false);
   const [confirmDel, setDel]  = useState(false);
+  const [delPw, setDelPw]     = useState('');
   const [theme, setTheme]     = useState<ThemeMode>('system');
   const [editBackend, setEdit] = useState(false);
 
@@ -64,10 +67,17 @@ export function Settings({ onBack, onLocked, onDeleted, onViewSeed, onAddresses,
   }
 
   async function deleteWallet() {
-    await clearWallet();
-    clearCache();
-    await lock();
-    onDeleted();   // no wallet remains → onboarding, not the unlock prompt
+    if (busy) return;
+    setBusy(true);
+    try {
+      // Require the password — deleting wipes the encrypted seed from this browser.
+      const ok = await unlockMnemonic(delPw);
+      if (!ok) { toast('Wrong password'); return; }
+      await clearWallet();
+      clearCache();
+      await lock();
+      onDeleted();   // no wallet remains → onboarding, not the unlock prompt
+    } finally { setBusy(false); }
   }
 
   const currentMode: BackendMode = meta?.explorerMode ?? 'pearlchain';
@@ -153,10 +163,12 @@ export function Settings({ onBack, onLocked, onDeleted, onViewSeed, onAddresses,
         </Section>
 
         <Section title="Wallet">
+          <Row label="My .pns names"        hint="View & transfer your names" onClick={onNames} />
           <Row label="Addresses & Compound" hint="HD list + UTXO sweep" onClick={onAddresses} />
           <Row label="Address book"        hint="Saved contacts"        onClick={onContacts}  />
-          <Row label="View 12-word phrase" hint="Reveal recovery seed"  onClick={onViewSeed}  />
-          <Row label="Lock wallet"         hint="Forget the session"
+          <Row label="View recovery phrase" hint="Reveal your seed words" onClick={onViewSeed}  />
+          <Row label="Export private key"   hint="For the selected account" onClick={onExportKey} />
+          <Row label="Lock wallet"          hint="Forget the session"
                onClick={async () => { await lock(); onLocked(); }} />
         </Section>
 
@@ -164,17 +176,26 @@ export function Settings({ onBack, onLocked, onDeleted, onViewSeed, onAddresses,
           {confirmDel ? (
             <div className="p-3 bg-rose-500/5">
               <p className="text-xs text-rose-700 dark:text-rose-300 leading-relaxed">
-                This erases the encrypted wallet from this browser. Make sure you have your 12-word phrase backed up.
+                This erases the encrypted wallet from this browser. Make sure your recovery phrase is backed up. Enter your password to confirm.
               </p>
+              <input
+                type="password"
+                value={delPw}
+                onChange={(e) => setDelPw(e.target.value)}
+                placeholder="Password"
+                autoFocus
+                className="mt-2 w-full bg-ink-800 border border-ink-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-rose-500/60 text-pearl-200"
+              />
               <div className="flex gap-2 mt-2">
                 <button
-                  onClick={() => setDel(false)}
+                  onClick={() => { setDel(false); setDelPw(''); }}
                   className="flex-1 rounded-lg py-2 text-sm border border-ink-700 text-pearl-300 hover:bg-ink-800"
                 >Cancel</button>
                 <button
                   onClick={deleteWallet}
-                  className="flex-1 rounded-lg py-2 text-sm bg-rose-600 hover:bg-rose-700 text-white font-medium"
-                >Confirm delete</button>
+                  disabled={busy || !delPw}
+                  className="flex-1 rounded-lg py-2 text-sm bg-rose-600 hover:bg-rose-700 text-white font-medium disabled:opacity-50"
+                >{busy ? 'Checking…' : 'Confirm delete'}</button>
               </div>
             </div>
           ) : (
@@ -184,7 +205,7 @@ export function Settings({ onBack, onLocked, onDeleted, onViewSeed, onAddresses,
         </Section>
 
         <div className="text-[11px] text-pearl-600 text-center py-2">
-          Pearl Wallet beta · v0.1.0
+          Pearl Wallet beta · v1.3.0
         </div>
       </div>
     </div>

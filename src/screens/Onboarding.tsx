@@ -32,13 +32,9 @@ export function Onboarding({ onCreate, onImport }: Props) {
           onClick={onImport}
           className="rounded-xl py-3 text-sm border border-ink-700 hover:bg-ink-800 text-pearl-300"
         >
-          Import 12-word phrase
+          Import recovery phrase
         </button>
       </div>
-
-      <p className="text-[11px] text-pearl-600 text-center leading-relaxed mt-4">
-        Beta · use small balances only · keys never leave your device
-      </p>
     </div>
   );
 }

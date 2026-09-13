@@ -10,9 +10,11 @@ import { Receive }    from '@/screens/Receive';
 import { Settings }   from '@/screens/Settings';
 import { AddAccount } from '@/screens/AddAccount';
 import { ViewSeed }   from '@/screens/ViewSeed';
+import { ExportKey }  from '@/screens/ExportKey';
 import { TxDetail }   from '@/screens/TxDetail';
 import { Addresses }  from '@/screens/Addresses';
 import { Contacts }   from '@/screens/Contacts';
+import { Names }      from '@/screens/Names';
 import { TabBar, type Tab } from '@/ui/TabBar';
 import { ToastHost, toast } from '@/ui/Toast';
 import { hasWallet, loadMeta } from '@/storage/vault';
@@ -23,7 +25,7 @@ export type Screen =
   | 'loading'
   | 'onboarding' | 'create' | 'import' | 'unlock'
   | 'dashboard' | 'activity' | 'send' | 'receive' | 'settings' | 'add-account'
-  | 'view-seed' | 'tx-detail' | 'addresses' | 'contacts' | 'pick-contact';
+  | 'view-seed' | 'export-key' | 'tx-detail' | 'addresses' | 'contacts' | 'pick-contact' | 'names';
 
 // Screens that participate in the bottom tab bar.
 const TAB_SCREENS: Screen[] = ['dashboard', 'activity', 'settings'];
@@ -110,13 +112,23 @@ export function App() {
           onLocked={() => setScreen('unlock')}
           onDeleted={() => setScreen('onboarding')}
           onViewSeed={() => setScreen('view-seed')}
+          onExportKey={() => setScreen('export-key')}
           onAddresses={() => setScreen('addresses')}
           onContacts={() => setScreen('contacts')}
+          onNames={() => setScreen('names')}
         />
+      )}
+
+      {screen === 'names' && (
+        <Names onBack={() => setScreen('settings')} />
       )}
 
       {screen === 'view-seed' && (
         <ViewSeed onBack={() => setScreen('settings')} />
+      )}
+
+      {screen === 'export-key' && (
+        <ExportKey onBack={() => setScreen('settings')} />
       )}
 
       {screen === 'tx-detail' && txArgs && (
