@@ -339,7 +339,7 @@ export function buildPnsTransferTx(args: PnsTransferArgs): BuiltTx {
   }
 
   let change = total - RECIP_AMT - fee;
-  let feeGrains = fee;
+  const feeGrains = fee;
   if (change > DUST_LIMIT) {
     tx.addOutputAddress(args.recipient, RECIP_AMT, NET);      // vout[0] = recipient, carries the name's sat
     tx.addOutputAddress(args.changeAddress, change, NET);     // vout[1] = change (sender)

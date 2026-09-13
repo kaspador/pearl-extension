@@ -41,7 +41,6 @@ export function Create({ onBack, onDone }: Props) {
       [all[i], all[j]] = [all[j], all[i]];
     }
     return all.slice(0, 3).sort((a, b) => a - b);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mnemonic]);
   const [verifyInputs, setVerify] = useState<Record<number, string>>({});
 

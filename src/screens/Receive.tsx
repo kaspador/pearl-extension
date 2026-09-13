@@ -63,7 +63,7 @@ export function Receive({ onBack }: { onBack: () => void }) {
             {pnsName}.pns
           </button>
         ) : (
-          <a href="https://pearlchain.live/pns" target="_blank" rel="noopener"
+          <a href="https://pearlchain.live/pns" target="_blank" rel="noopener noreferrer"
              className="text-xs text-pearl-600 hover:text-pearl-400 underline decoration-pearl-700">
             Get a .pns name →
           </a>

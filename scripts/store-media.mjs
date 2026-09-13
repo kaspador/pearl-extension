@@ -6,7 +6,7 @@
 // Run: node scripts/store-media.mjs
 // (ffmpeg-static is installed --no-save; sharp is a devDependency.)
 
-import { readdir, mkdir, rm, writeFile } from 'node:fs/promises';
+import { readdir, mkdir, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
