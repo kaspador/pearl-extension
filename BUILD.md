@@ -9,7 +9,7 @@ steps below reproduce that bundle exactly.
 ## Build environment requirements
 - **Operating system:** any. Developed and built on Windows 11; the build is
   pure Node.js and also runs on macOS and Linux (no OS-specific tools).
-- **Node.js:** v20 or newer (developed with **v22.18.0**). npm ships with Node.
+- **Node.js:** v20.19+ or v22.12+ (developed with **v22.18.0**). npm ships with Node.
   - Install from https://nodejs.org/ (LTS), or via nvm: `nvm install 22 && nvm use 22`.
 - No other global tools or system packages are required.
 
