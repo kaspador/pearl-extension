@@ -193,7 +193,7 @@ export function Send({ onBack, onSent, onPickContact, initialRecipient, initialA
               <div className="text-xs text-pearl-600 mt-1">resolving .pns…</div>
             ) : recipient && !addrValid ? (
               <div className="text-xs text-rose-700 dark:text-rose-400 mt-1">
-                {/^[a-z0-9][a-z0-9-]{0,62}(\.pns)?$/i.test(recipient.trim()) ? 'No .pns name found' : 'Invalid Pearl address'}
+                {!/^t?prl1/i.test(recipient.trim()) && /^[a-z0-9][a-z0-9-]{0,62}(\.pns)?$/i.test(recipient.trim()) ? 'No .pns name found' : 'Invalid Pearl address'}
               </div>
             ) : null}
           </label>

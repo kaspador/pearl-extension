@@ -161,7 +161,7 @@ function TransferName({ held, onBack, onDone }: { held: HeldName; onBack: () => 
               <div className="text-xs text-pearl-600 mt-1">resolving .pns…</div>
             ) : recipient && !addrValid ? (
               <div className="text-xs text-rose-700 dark:text-rose-400 mt-1">
-                {/^[a-z0-9][a-z0-9-]{0,62}(\.pns)?$/i.test(recipient.trim()) ? 'No .pns name found' : 'Invalid Pearl address'}
+                {!/^t?prl1/i.test(recipient.trim()) && /^[a-z0-9][a-z0-9-]{0,62}(\.pns)?$/i.test(recipient.trim()) ? 'No .pns name found' : 'Invalid Pearl address'}
               </div>
             ) : toSelf ? (
               <div className="text-xs text-amber-600 dark:text-amber-400 mt-1">That&apos;s this name&apos;s current address — pick a different owner.</div>
