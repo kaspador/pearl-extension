@@ -67,15 +67,15 @@ describe('golden: keys and addresses are unchanged', () => {
 });
 
 describe('golden: vaults sealed by 1.3.1 still open', () => {
-  it('opens the password-sealed master mnemonic', () => {
-    expect(openWithPassword(F.vault.box as SealedBox, F.vault.password)).toBe(F.vault.plaintext);
+  it('opens the password-sealed master mnemonic', async () => {
+    expect(await openWithPassword(F.vault.box as SealedBox, F.vault.password)).toBe(F.vault.plaintext);
   });
-  it('rejects the wrong password', () => {
-    expect(openWithPassword(F.vault.box as SealedBox, 'wrong')).toBeNull();
+  it('rejects the wrong password', async () => {
+    expect(await openWithPassword(F.vault.box as SealedBox, 'wrong')).toBeNull();
   });
-  it('opens a mnemonic-keyed box (imported keys / extra seeds)', () => {
+  it('opens a mnemonic-keyed box (imported keys / extra seeds)', async () => {
     const k = F.vault.mnemonicKeyed;
-    expect(openWithPassword(k.box as SealedBox, k.key)).toBe(k.plaintext);
+    expect(await openWithPassword(k.box as SealedBox, k.key)).toBe(k.plaintext);
   });
 });
 

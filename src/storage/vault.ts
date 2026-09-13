@@ -3,7 +3,8 @@
 //
 // Two layers of protection:
 //  1. The master mnemonic is encrypted with AES-256-GCM via a key derived from
-//     the user's password (PBKDF2 100k iters) — this is the real boundary.
+//     the user's password (PBKDF2-SHA256, 600k iterations; vaults from 1.3.1
+//     used 100k and are upgraded on the next unlock). This is the real boundary.
 //     Imported single keys are sealed with the MASTER MNEMONIC as the secret, so
 //     unlocking the wallet (which yields the mnemonic) can open them without a
 //     second password, and a password change never has to touch them.
@@ -14,7 +15,7 @@
 // v2 adds multiple accounts: one master seed can expose several BIP-86 HD
 // accounts (account 0', 1', …) plus imported single keys, MetaMask-style.
 
-import { sealWithPassword, openWithPassword, type SealedBox } from '@/pearl/crypto';
+import { sealWithPassword, sealWithSecret, openWithPassword, boxIterations, PASSWORD_ITERS, type SealedBox } from '@/pearl/crypto';
 import { parsePrivateKey, privateKeyToAddress, defaultDerivation, mnemonicToHDKey, deriveAddress, type Derivation } from '@/pearl/wallet';
 import { getNetwork } from '@/pearl/network';
 import { bytesToHex, hexToBytes } from '@/pearl/bytes';
@@ -129,7 +130,7 @@ export async function createWallet(args: {
 }): Promise<void> {
   const network = args.network ?? 'mainnet';
   const deriv   = args.derivation ?? defaultDerivation(network);
-  const sealed  = sealWithPassword(args.mnemonic, args.password);
+  const sealed  = await sealWithPassword(args.mnemonic, args.password);
   await set(WALLET_KEY, { sealed, version: 1 } satisfies StoredWallet);
 
   const primary: HdAccountDescriptor = {
@@ -156,15 +157,34 @@ export async function readSealed(): Promise<StoredWallet | null> {
 export async function unlockMnemonic(password: string): Promise<string | null> {
   const wallet = await readSealed();
   if (!wallet) return null;
-  return openWithPassword(wallet.sealed, password);
+  const mnemonic = await openWithPassword(wallet.sealed, password);
+  if (mnemonic) await upgradeSealIfWeak(wallet, mnemonic, password);
+  return mnemonic;
+}
+
+// Re-seal a vault written with fewer iterations than today's setting. The new
+// box is proven to open with the same password before it replaces the old one,
+// and any failure leaves the old box untouched: unlocking must never break.
+async function upgradeSealIfWeak(wallet: StoredWallet, mnemonic: string, password: string): Promise<void> {
+  const it = boxIterations(wallet.sealed);
+  if (it !== null && it >= PASSWORD_ITERS) return;
+  try {
+    const sealed = await sealWithPassword(mnemonic, password);
+    if ((await openWithPassword(sealed, password)) !== mnemonic) return;
+    const current = await readSealed();
+    // Only replace the exact box we opened (no concurrent password change).
+    if (!current || JSON.stringify(current.sealed) !== JSON.stringify(wallet.sealed)) return;
+    await set(WALLET_KEY, { sealed, version: 1 } satisfies StoredWallet);
+  } catch { /* keep the old box */ }
 }
 
 export async function changePassword(oldPw: string, newPw: string): Promise<boolean> {
   const wallet = await readSealed();
   if (!wallet) return false;
-  const mnemonic = openWithPassword(wallet.sealed, oldPw);
+  const mnemonic = await openWithPassword(wallet.sealed, oldPw);
   if (!mnemonic) return false;
-  const sealed = sealWithPassword(mnemonic, newPw);
+  const sealed = await sealWithPassword(mnemonic, newPw);
+  if ((await openWithPassword(sealed, newPw)) !== mnemonic) return false;
   await set(WALLET_KEY, { sealed, version: 1 } satisfies StoredWallet);
   // Imported keys are sealed with the mnemonic, not the password — untouched.
   return true;
@@ -269,7 +289,7 @@ export async function importPrivateKeyAccount(args: {
     label: (args.label?.trim()) || `Imported ${meta.accounts.filter(a => a.type === 'imported').length + 1}`,
     type: 'imported', address,
   };
-  store[acct.id] = sealWithPassword(bytesToHex(priv), args.mnemonic);
+  store[acct.id] = await sealWithSecret(bytesToHex(priv), args.mnemonic);
   await set(IMPORTED_KEY, store);
   await set(META_KEY, { ...meta, accounts: [...meta.accounts, acct], selectedAccountId: acct.id });
   return acct;
@@ -280,7 +300,7 @@ export async function getImportedKey(id: string, mnemonic: string): Promise<Uint
   const store = await get<ImportedStore>(IMPORTED_KEY);
   const box = store?.[id];
   if (!box) return null;
-  const hex = openWithPassword(box, mnemonic);
+  const hex = await openWithPassword(box, mnemonic);
   return hex ? hexToBytes(hex) : null;
 }
 
@@ -297,7 +317,7 @@ export async function importSeedAccount(args: {
 
   const seedId = newId();
   const seeds  = (await get<SeedStore>(SEEDS_KEY)) ?? {};
-  seeds[seedId] = sealWithPassword(args.mnemonic.trim(), args.masterMnemonic);
+  seeds[seedId] = await sealWithSecret(args.mnemonic.trim(), args.masterMnemonic);
   await set(SEEDS_KEY, seeds);
 
   const acct: HdAccountDescriptor = {
@@ -314,7 +334,7 @@ export async function getSeedMnemonic(seedId: string, masterMnemonic: string): P
   const seeds = await get<SeedStore>(SEEDS_KEY);
   const box = seeds?.[seedId];
   if (!box) return null;
-  return openWithPassword(box, masterMnemonic);
+  return await openWithPassword(box, masterMnemonic);
 }
 
 // Remove an account (keeps at least one). Selecting falls back to the first
