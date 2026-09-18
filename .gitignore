@@ -7,3 +7,4 @@ dist-firefox/
 *.log
 .env
 .env.local
+STORE_NOTES.md

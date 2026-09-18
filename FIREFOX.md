@@ -20,7 +20,7 @@ copies `dist/ → dist-firefox/` and rewrites `manifest.json`:
 - `background.service_worker` → `background.scripts` (Firefox MV3 uses an
   event page, not a service worker; our background has no SW-only APIs).
 - adds `browser_specific_settings.gecko.id = pearl-wallet@pearlchain.live`
-  (`strict_min_version: 121.0`, required for the MV3 module background).
+  (`strict_min_version: 140.0`; Firefox for Android needs 142+).
 
 Chrome's `dist/` is never modified.
 
@@ -39,7 +39,7 @@ AMO signs it (free). The `gecko.id` above must stay stable across versions.
 
 ## Notes / caveats
 
-- Requires **Firefox 121+** (MV3 module background scripts).
+- Requires **Firefox 140+** (142+ on Android).
 - If a future change adds a service-worker-only API (e.g. `fetch`/`install`
   events, `clients`, `skipWaiting`), the Firefox event-page background would
   need a separate entry — none are used today.
